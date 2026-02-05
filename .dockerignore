@@ -1,0 +1,21 @@
+# Ignore git metadata
+.git/
+
+# Tests and docs not needed in image
+tests/
+docs/
+
+# Local files
+.vscode/
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual env
+.venv/
+
+# Temp and editor files
+*.swp
+.DS_Store

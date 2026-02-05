@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jobmanager"
+version = "0.0.0"
+description = "Scaffold: backend service for managing and executing jobs."
+readme = "README.md"
+authors = [ { name = "TODO", email = "TODO" } ]
+
+[tool.black]
+line-length = 120
+target-version = ["py313"]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C", "D"]
+ignore = [
+	"C901",  # complexity: allow early iteration; tighten later
+	"D100",  # missing docstring in public module (allow early iteration)
+	"D104",  # missing docstring in public package (allow early iteration)
+	"D203",  # one-blank-line-before-class
+	"D213",  # multi-line-summary-second-line
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]

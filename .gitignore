@@ -1,0 +1,39 @@
+# Virtual environments
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE/editor
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Build outputs
+build/
+dist/
+.pytest_cache/
+
+# Tool caches
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Local env
+.env
+
+# Local notes and experiments
+# (project drafts moved to `private_docs/` — kept local and not versioned)
+*.local
+*.draft
+
+# Local-only private documentation (project drafts)
+# Keep `private_docs/` local; it replaces `docs/drafts/` as the working draft area.
+private_docs/
+
+# Ignore the working architecture diagram (not ready to be versioned)
+/docs/diagrams/architecture.mmd
