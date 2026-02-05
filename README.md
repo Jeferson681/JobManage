@@ -1,33 +1,50 @@
-JobManager
+# JobManager
 
-Backend service para gerenciamento e execução de jobs.
+> WIP — Private
 
-Status: levantamento e design — estrutura inicial apenas.
+JobManager é um laboratório técnico de backend para demonstrar um sistema de jobs assíncronos com workers, persistência auditável, políticas de retry/cancelamento e observabilidade básica.
 
-## Dev environment
+Status: Work in progress (private). License: MIT.
 
-### Install (Windows)
+## Começando (Windows)
+
+Crie um ambiente virtual e instale dependências de desenvolvimento:
 
 ```powershell
-# create/activate venv (example)
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-
-# tooling
-python -m pip install -r requirements-dev.txt
-
-# pre-commit
-python -m pre_commit install
+pip install -r requirements-dev.txt
 ```
 
-### Quality commands
+Comandos úteis:
 
 ```powershell
-python -m black .
-python -m isort .
-python -m ruff check .
-python -m mypy src
-python -m pytest
-python -m pytest --cov=src --cov-report=term-missing --cov-report=xml
-python -m pre_commit run --all-files
+# format
+black .
+# isort (se necessário)
+isort .
+# lint
+ruff check .
+# typecheck
+mypy src || true
+# tests
+pytest
+# pre-commit
+.venv\Scripts\python.exe -m pre_commit run --all-files
 ```
+
+## Documento de levantamento
+
+Interno: veja `private_docs/Documento_Levantamento_Direcionamento_Tecnico.md` para requisitos, decisões e contratos.
+
+## Diagrams
+
+Diagrama de arquitetura (rascunho local): `docs/diagrams/architecture.mmd` — mantido localmente enquanto estiver em draft.
+
+## License
+
+MIT — ver `LICENSE`.
+
+## Contato
+
+Jeferson Oliveira de Sousa — Jefersonoliveiradesousa681@gmail.com

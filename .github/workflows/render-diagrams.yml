@@ -1,0 +1,43 @@
+name: Render Mermaid diagrams
+
+on:
+    pull_request:
+        paths:
+            - "docs/diagrams/**.mmd"
+    push:
+        paths:
+            - "docs/diagrams/**.mmd"
+
+jobs:
+    render:
+        name: Render changed Mermaid files
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "18"
+
+            - name: Install mermaid-cli
+              run: |
+                  npm install -g @mermaid-js/mermaid-cli
+
+            - name: Create artifacts dir
+              run: mkdir -p docs/diagrams/artifacts
+
+            - name: Render all Mermaid files
+              run: |
+                  for f in docs/diagrams/*.mmd; do
+                    [ -e "$f" ] || continue
+                    base=$(basename "$f" .mmd)
+                    mmdc -i "$f" -o "docs/diagrams/artifacts/${base}.svg"
+                  done
+
+            - name: Upload rendered diagrams
+              uses: actions/upload-artifact@v4
+              with:
+                  name: diagrams-svgs
+                  path: docs/diagrams/artifacts/*.svg
