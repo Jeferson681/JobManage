@@ -19,16 +19,27 @@ def get_conn():
     Tests may override `api.DB_PATH` before calling handlers; this function
     reads the package attribute at runtime to respect such overrides.
     """
-    # Resolve DB path from package-level attribute if present so tests can override it
+    # Prefer a `DB_PATH` set on the parent package (jobmanager.api) so tests
+    # that do `from jobmanager import api as api_mod; api_mod.DB_PATH = path`
+    # continue to work. Fall back to this module's DB_PATH when not present.
     import importlib
 
-    if __package__:
+    try:
         pkg = importlib.import_module(__package__)
-        db_path = getattr(pkg, "DB_PATH", DB_PATH)
-    else:
-        db_path = DB_PATH
+        db_path = getattr(pkg, "DB_PATH", globals().get("DB_PATH", DB_PATH))
+    except Exception:
+        db_path = globals().get("DB_PATH", DB_PATH)
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # Ensure the schema exists for this connection; calling init_db is
+    # idempotent and safe. This guarantees tests which override
+    # `DB_PATH` see the expected tables even if lifespan isn't run.
+    try:
+        init_db(conn)
+    except sqlite3.Error:
+        # If schema creation fails for this connection, allow request
+        # handling to proceed so a clearer error is raised later.
+        pass
     return conn
 
 
