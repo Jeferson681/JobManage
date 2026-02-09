@@ -10,6 +10,8 @@ jobs:
     tests:
         name: Run tests
         runs-on: ubuntu-latest
+        # rely on editable install to expose the `jobmanager` package
+        # avoid exporting PYTHONPATH here to keep CI environment clean
         strategy:
             matrix:
                 python-version: [3.11]

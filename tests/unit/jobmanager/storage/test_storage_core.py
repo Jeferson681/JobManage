@@ -1,6 +1,6 @@
 import sqlite3
 
-from src.jobmanager.storage import create_job, get_job, init_db, reserve_next
+from jobmanager.storage import create_job, get_job, init_db, reserve_next
 
 
 def test_create_job_persists_fields():

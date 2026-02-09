@@ -2,7 +2,7 @@ import sqlite3
 
 from fastapi.testclient import TestClient
 
-from src.jobmanager import api, storage, worker
+from jobmanager import api, storage, worker
 
 
 def test_create_and_process_job(tmp_path):

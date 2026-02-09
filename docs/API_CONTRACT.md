@@ -116,7 +116,7 @@ Run examples (local dev)
 Start API (FastAPI/uvicorn):
 
 ```bash
-uvicorn src.jobmanager.api:app --reload
+uvicorn jobmanager.api:app --reload
 ```
 
 Seed a job (curl example above) and run a worker process that polls and reserves jobs.

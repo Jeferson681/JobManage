@@ -29,13 +29,13 @@ pip freeze > pinned-requirements.txt
 - Rodar a API (ex.: FastAPI):
 
 ```powershell
-uvicorn src.jobmanager.api:app --reload --port 8000
+uvicorn jobmanager.api:app --reload --port 8000
 ```
 
 - Rodar worker (exemplo mínimo):
 
 ```powershell
-python -m src.jobmanager.worker --config config.yml
+python -m jobmanager.worker --config config.yml
 ```
 
 Observação: ajuste os comandos acima ao entrypoint real do projeto.
@@ -89,9 +89,9 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
 pre-commit run --all-files
-uvicorn src.jobmanager.api:app --reload --port 8000 &
+uvicorn jobmanager.api:app --reload --port 8000 &
 python scripts/seed_jobs.py
-python -m src.jobmanager.worker
+python -m jobmanager.worker
 ```
 
 10) Próximos passos recomendados

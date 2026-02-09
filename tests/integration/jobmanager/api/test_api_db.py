@@ -2,7 +2,7 @@ import sqlite3
 
 from fastapi.testclient import TestClient
 
-from src.jobmanager import api, storage
+from jobmanager import api, storage
 
 
 def test_api_posts_job_and_gets_queued(tmp_path):

@@ -1,8 +1,7 @@
 """JobManager package - re-export modular subpackages for convenience.
 
 This package exposes `api`, `storage`, `worker`, and `schemas` as
-attributes so existing imports like `from src.jobmanager import api`
-continue to work after reorganizing modules into subpackages.
+attributes; import using `from jobmanager import api`.
 """
 
 from . import api as api
