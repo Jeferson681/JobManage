@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
 
+from ..logging import log_event
 from ..schemas import JobCreate
 from ..storage.core import create_job as storage_create_job
 from ..storage.core import find_by_idempotency_key, get_job, init_db
@@ -27,7 +28,12 @@ def get_conn():
 
     try:
         pkg = importlib.import_module(__package__)
-        db_path = getattr(pkg, "DB_PATH", globals().get("DB_PATH", DB_PATH))
+        pkg_db = getattr(pkg, "DB_PATH", None)
+        mod_db = globals().get("DB_PATH", DB_PATH)
+        # Prefer a package-level override when present (typical test usage).
+        # If the package is still using the default in-memory DB, allow the
+        # module-level DB_PATH to take precedence (useful in some tests).
+        db_path = pkg_db if pkg_db and pkg_db != ":memory:" else mod_db
     except Exception:
         db_path = globals().get("DB_PATH", DB_PATH)
     conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -125,8 +131,20 @@ def create_job(item: JobCreate, idempotency_key: Optional[str] = Header(None)):
         if found:
             job = get_job(conn, found)
             if job is not None:
+                try:
+                    log_event("job.create_idempotent_return", job_id=job["job_id"], idempotency_key=idempotency_key)
+                except Exception as exc:
+                    import logging
+
+                    logging.exception("log_event failed: %s", exc)
                 return JSONResponse(status_code=200, content={"job_id": job["job_id"], "status": job["status"]})
     job_id = storage_create_job(conn, item.job_type, item.payload, item.max_attempts, idempotency_key)
+    try:
+        log_event("job.create", job_id=job_id, job_type=item.job_type)
+    except Exception as exc:
+        import logging
+
+        logging.exception("log_event failed: %s", exc)
     return {"job_id": job_id, "status": "QUEUED"}
 
 

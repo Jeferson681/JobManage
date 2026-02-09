@@ -4,6 +4,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from ..logging import log_event
+
 DB_SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
   job_id TEXT PRIMARY KEY,
@@ -63,6 +65,13 @@ def create_job(
         (job_id, job_type, json.dumps(payload), idempotency_key, "QUEUED", max_attempts, now, now),
     )
     conn.commit()
+    # emit structured log
+    try:
+        log_event("job.created", job_id=job_id, job_type=job_type, idempotency_key=idempotency_key)
+    except Exception as exc:
+        import logging
+
+        logging.exception("log_event failed: %s", exc)
     return job_id
 
 
@@ -125,6 +134,13 @@ def reserve_next(conn: sqlite3.Connection, worker_id: str, lease_seconds: int = 
         conn.commit()
         return None
     conn.commit()
+    # log reservation
+    try:
+        log_event("job.reserved", job_id=job_id, worker_id=worker_id)
+    except Exception as exc:
+        import logging
+
+        logging.exception("log_event failed: %s", exc)
     return get_job(conn, job_id)
 
 
@@ -163,5 +179,13 @@ def update_job(conn: sqlite3.Connection, job_id: str, **fields) -> None:
             val = v
 
         cur.execute(QUERIES[k], (val, _now_iso(), job_id))
+        # log status changes specifically
+        if k == "status":
+            try:
+                log_event("job.status_changed", job_id=job_id, status=val)
+            except Exception as exc:
+                import logging
+
+                logging.exception("log_event failed: %s", exc)
 
     conn.commit()

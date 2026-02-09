@@ -25,12 +25,14 @@ jobs:
               run: |
                   python -m pip install --upgrade pip
                   pip install -r requirements.txt -r requirements-dev.txt
-            - name: Install package (editable)
-              run: |
-                  python -m pip install -e .
-            - name: Run tests
-              run: |
-                  pytest -q
+                        - name: Install package (editable)
+                            run: |
+                                    python -m pip install -e .
+                        - name: Run tests with coverage
+                            run: |
+                                    python -m pip install coverage
+                                    coverage run -m pytest -q
+                                    coverage report --fail-under=90
 
     integration_e2e:
         name: Run integration + E2E
