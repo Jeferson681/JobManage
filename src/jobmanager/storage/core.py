@@ -113,8 +113,11 @@ def reserve_next(conn: sqlite3.Connection, worker_id: str, lease_seconds: int = 
     lease_until = (now + timedelta(seconds=lease_seconds)).isoformat()
     cur = conn.cursor()
     # Atomic-ish reservation: find candidate, then update if still unlocked
+    # include jobs that are queued or retryable and whose next_run_at (if set)
+    # is due. This allows the worker to pick up retryable jobs when their
+    # backoff timer has expired.
     sql_select = (
-        "SELECT job_id FROM jobs WHERE status = 'QUEUED' "
+        "SELECT job_id FROM jobs WHERE (status = 'QUEUED' OR status = 'FAILED_RETRYABLE') "
         "AND (next_run_at IS NULL OR next_run_at <= ?) "
         "AND (locked_until IS NULL OR locked_until <= ?) "
         "ORDER BY next_run_at ASC LIMIT 1"
