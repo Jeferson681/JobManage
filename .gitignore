@@ -1,4 +1,12 @@
-# Virtual environments
+/.venv/
+/.pytest_cache/
+/.mypy_cache/
+/.cache/
+act.exe
+act.zip
+.DS_Store
+*.pyc
+__pycache__/# Virtual environments
 .venv/
 
 # Python cache
