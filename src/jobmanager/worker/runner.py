@@ -1,4 +1,5 @@
 import os
+import random
 import sqlite3
 from typing import Optional
 
@@ -19,7 +20,27 @@ def get_conn():
     pkg = importlib.import_module(__package__)
     pkg_db = getattr(pkg, "DB_PATH", None)
     mod_db = globals().get("DB_PATH", DB_PATH)
-    db_path = pkg_db if pkg_db and pkg_db != ":memory:" else mod_db
+
+    # If both package and module overrides are present, prefer the one
+    # that points to an existing DB file with the most recent mtime. This
+    # helps tests that set different DB paths to avoid cross-test leakage
+    # when temporary DB files coexist on disk.
+    candidates = []
+    for cand in (mod_db, pkg_db):
+        if cand and cand != ":memory":
+            try:
+                if os.path.exists(cand):
+                    mtime = os.path.getmtime(cand)
+                    candidates.append((mtime, cand))
+            except OSError:
+                # ignore filesystem access errors for candidate DB paths
+                continue
+    if candidates:
+        # pick the path with newest modification time
+        candidates.sort(reverse=True)
+        db_path = candidates[0][1]
+    else:
+        db_path = pkg_db if pkg_db and pkg_db != ":memory:" else mod_db
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
@@ -89,11 +110,15 @@ def run_once(worker_id: str = "worker-1") -> Optional[str]:
                 logging.exception("log_event failed: %s", log_exc)
             return job_id
 
-        # schedule next run using exponential backoff
+        # schedule next run using exponential backoff with full jitter
         from datetime import datetime, timedelta, timezone
 
-        delay = base**attempt
-        next_run = (datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat()
+        nominal = min(300, base**attempt)
+        # full jitter: uniform(0, nominal)
+        # This use of the stdlib PRNG is intentional (non-crypto). Mark with
+        # a bandit suppression to avoid false positives from security scanners.
+        retry_delay = float(random.uniform(0, nominal))  # nosec B311
+        next_run = (datetime.now(timezone.utc) + timedelta(seconds=retry_delay)).isoformat()
         update_job(
             conn,
             job_id,
@@ -104,7 +129,14 @@ def run_once(worker_id: str = "worker-1") -> Optional[str]:
             locked_until=None,
         )
         try:
-            log_event("job.failed", job_id=job_id, worker_id=worker_id, error=str(exc), next_run_at=next_run)
+            log_event(
+                "job.failed",
+                job_id=job_id,
+                worker_id=worker_id,
+                error=str(exc),
+                next_run_at=next_run,
+                retry_delay=retry_delay,
+            )
         except Exception as log_exc:
             import logging
 

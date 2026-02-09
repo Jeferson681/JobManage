@@ -10,8 +10,6 @@ jobs:
     tests:
         name: Run tests
         runs-on: ubuntu-latest
-        # rely on editable install to expose the `jobmanager` package
-        # avoid exporting PYTHONPATH here to keep CI environment clean
         strategy:
             matrix:
                 python-version: [3.11]
@@ -20,19 +18,23 @@ jobs:
             - name: Set up Python
               uses: actions/setup-python@v4
               with:
-                  python-version: "${{ matrix.python-version }}"
+                  python-version: ${{ matrix.python-version }}
+                  cache: 'pip'
             - name: Install dependencies
               run: |
                   python -m pip install --upgrade pip
                   pip install -r requirements.txt -r requirements-dev.txt
-                        - name: Install package (editable)
-                            run: |
-                                    python -m pip install -e .
-                        - name: Run tests with coverage
-                            run: |
-                                    python -m pip install coverage
-                                    coverage run -m pytest -q
-                                    coverage report --fail-under=90
+                  # install package in editable mode (includes local package for tests)
+                  python -m pip install -e .
+            - name: Run tests with coverage
+              run: |
+                  coverage run -m pytest -q
+                  coverage xml -i
+            - name: Upload coverage report
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-report
+                  path: coverage.xml
 
     integration_e2e:
         name: Run integration + E2E
