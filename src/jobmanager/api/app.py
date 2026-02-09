@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, Header, HTTPException
@@ -52,6 +53,63 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="JobManager (dev scaffold)", lifespan=lifespan)
+
+
+@app.get("/health")
+def health() -> dict:
+    """Liveness probe.
+
+    Returns 200 if the process is running.
+    """
+    return {"status": "ok"}
+
+
+@app.get("/ready")
+def ready() -> dict:
+    """Readiness probe.
+
+    Returns 200 when the service can connect to the DB.
+    """
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.fetchone()
+        return {"status": "ok"}
+    except sqlite3.Error as exc:
+        raise HTTPException(status_code=503, detail=f"db not ready: {exc}")
+
+
+@app.get("/metrics")
+def metrics() -> dict:
+    """Return minimal operational metrics.
+
+    This is intentionally simple (JSON). It is good enough for local debugging
+    and basic CI validation.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    jobs_by_status: dict[str, int] = {}
+    cur.execute("SELECT status, COUNT(*) FROM jobs GROUP BY status")
+    for status, count in cur.fetchall():
+        jobs_by_status[str(status)] = int(count)
+
+    cur.execute("SELECT COUNT(*) FROM jobs WHERE status = 'FAILED_RETRYABLE'")
+    retry_jobs = int(cur.fetchone()[0])
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    cur.execute(
+        "SELECT COUNT(*) FROM jobs " "WHERE status = 'RUNNING' AND locked_until IS NOT NULL AND locked_until <= ?",
+        (now_iso,),
+    )
+    orphaned_running = int(cur.fetchone()[0])
+
+    return {
+        "jobs_by_status": jobs_by_status,
+        "retry_jobs": retry_jobs,
+        "orphaned_running": orphaned_running,
+    }
 
 
 @app.post("/jobs")
