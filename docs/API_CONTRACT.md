@@ -1,19 +1,37 @@
 # API Contract — JobManager
 
-This document defines the minimal API for creating and controlling jobs in the JobManager.
+Este documento define a API mínima do JobManager **conforme implementada hoje**.
 
 Base URL: `/` (service root)
 
-Schemas
+Implementação: [src/jobmanager/api/app.py](../src/jobmanager/api/app.py)
 
-- Job (response)
+## Modelos
+
+### JobCreate (request)
+
+```json
+{
+  "job_type": "string",
+  "payload": {},
+  "max_attempts": 3
+}
+```
+
+Notas:
+
+- `max_attempts` é opcional (padrão 3).
+- Não existe `idempotency_key` no body atualmente.
+
+### Job (response de GET)
+
+`GET /jobs/{job_id}` retorna um objeto com os campos persistidos. Exemplo (parcial):
 
 ```json
 {
   "job_id": "uuid",
   "job_type": "string",
-  "payload": { },
-  "idempotency_key": "string|null",
+  "payload": {},
   "status": "QUEUED|RUNNING|SUCCEEDED|FAILED_RETRYABLE|FAILED_FINAL|CANCEL_REQUESTED|CANCELED",
   "attempt": 0,
   "max_attempts": 3,
@@ -27,36 +45,42 @@ Schemas
 }
 ```
 
-Endpoints
+## Endpoints
 
-1) Create job — `POST /jobs`
+### 1) Create job — `POST /jobs`
 
-- Description: create a new Job. Supports idempotency via `idempotency_key` (in body or `Idempotency-Key` header).
-- Request (JSON):
+- Description: cria um novo job.
+
+Idempotência (opcional):
+
+- Header: `Idempotency-Key: <string>`
+- Se um job com a mesma chave existir, a API retorna o mesmo `job_id` e **não cria duplicado**.
+Request (JSON):
 
 ```json
 {
   "job_type": "send_email",
   "payload": { "to": "user@example.com", "subject": "Hi" },
-  "idempotency_key": "optional-string",
   "max_attempts": 5
 }
 ```
 
-- Responses:
-  - `201 Created` — job created. Body: job object (see schema).
-  - `200 OK` — idempotent: a job with the same `idempotency_key` already exists; returns existing job (not created again).
-  - `400 Bad Request` — validation error.
+Responses (hoje):
+
+- `201 Created` — criado. Body: `{ "job_id": "...", "status": "QUEUED" }`
+- `200 OK` — idempotente: job já existia. Body: `{ "job_id": "...", "status": "..." }`
+- `400 Bad Request` — erro de validação
 
 Example cURL (create):
 
 ```bash
 curl -X POST http://localhost:8000/jobs \
   -H 'Content-Type: application/json' \
-  -d '{"job_type":"send_email","payload":{"to":"x@x","subject":"h"},"idempotency_key":"abc-123"}'
+  -H 'Idempotency-Key: abc-123' \
+  -d '{"job_type":"send_email","payload":{"to":"x@x","subject":"h"},"max_attempts":3}'
 ```
 
-2) Get job — `GET /jobs/{job_id}`
+### 2) Get job — `GET /jobs/{job_id}`
 
 - Description: retrieve job state and metadata.
 - Responses:
@@ -69,12 +93,14 @@ Example cURL (get):
 curl http://localhost:8000/jobs/00000000-0000-0000-0000-000000000000
 ```
 
-3) Cancel job — `POST /jobs/{job_id}/cancel`
+### 3) Cancel job — `POST /jobs/{job_id}/cancel`
 
-- Description: request cancellation of a job. Cancellation is best-effort — worker must cooperate. Endpoint records `CANCEL_REQUESTED` and returns current job state.
-- Responses:
-  - `202 Accepted` — cancel request recorded; body: job object (updated status may be `CANCEL_REQUESTED`).
-  - `404 Not Found` — unknown `job_id`.
+- Description: solicita cancelamento (best-effort). A API marca `CANCEL_REQUESTED`.
+
+Responses (hoje):
+
+- `200 OK` — `{ "job_id": "...", "status": "CANCEL_REQUESTED" }`
+- `404 Not Found`
 
 Example cURL (cancel):
 
@@ -82,7 +108,7 @@ Example cURL (cancel):
 curl -X POST http://localhost:8000/jobs/00000000-0000-0000-0000-000000000000/cancel
 ```
 
-Status semantics
+## Status semantics
 
 - `QUEUED`: waiting for execution.
 - `RUNNING`: reserved by a worker (lease active).
@@ -92,35 +118,36 @@ Status semantics
 - `CANCEL_REQUESTED`: cancel requested (best-effort).
 - `CANCELED`: canceled (terminal).
 
-Idempotency rules
+## Idempotency rules
 
-- If `idempotency_key` is provided when creating a job, the server must ensure that repeated `POST /jobs` calls with the same `idempotency_key` and equivalent body return the same job instead of creating duplicates.
-- Recommended behavior: first request returns `201 Created`; subsequent identical requests return `200 OK` with the existing job object.
+- A idempotência é baseada no header `Idempotency-Key`.
+- Primeira requisição retorna `201`.
+- Requisições subsequentes com a mesma chave retornam `200` com o mesmo `job_id`.
 
-Error fields
+## Error fields
 
 - `last_error` in the job object should be a structured object when present, e.g. `{ "message": "timeout connecting to X", "code": "network_timeout" }`.
 
-Timestamps and formats
+## Timestamps and formats
 
 - All timestamps use RFC3339 / ISO8601 UTC strings.
 
-Notes for implementers
+## Notes for implementers
 
 - Cancel is best-effort; workers should check for `CANCEL_REQUESTED` and exit gracefully when possible.
 - `locked_until` + `worker_id` implement the lease; if `locked_until` is in the past the job becomes eligible for reservation again.
 - `next_run_at` controls scheduling for retries and delayed jobs.
 
-Run examples (local dev)
+## Run examples (local dev)
 
 Start API (FastAPI/uvicorn):
 
-```bash
-uvicorn jobmanager.api:app --reload
+```powershell
+python -m uvicorn jobmanager.api.app:app --reload
 ```
 
 Seed a job (curl example above) and run a worker process that polls and reserves jobs.
 
-Change log
+## Change log
 
-- 2026-02-05: initial contract (minimal endpoints + idempotency rules)
+- 2026-02-10: alinhado com implementação atual (idempotência via header; create/cancel retornam `{job_id, status}`)

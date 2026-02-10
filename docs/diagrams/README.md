@@ -1,41 +1,27 @@
-# Diagrams — conventions and rendering
+# Diagramas — convenções e como renderizar
 
-This folder contains textual diagram sources (Mermaid) used as the canonical "source of truth" for architecture and experiments.
+Este diretório contém diagramas em Mermaid, usados como “source of truth” para a arquitetura e para o laboratório.
 
-Why textual diagrams?
-- They are diffable and reviewable in Git (PRs), enabling evolution tracking.
-- They can be rendered locally (VSCode Mermaid preview) or in CI (Mermaid CLI `mmdc`).
+Observação: neste repositório os diagramas estão em arquivos `.md` com blocos ` ```mermaid `.
 
-Structure & naming
-- `01_use_cases.mmd` — use case flows and actor interactions
-- `02_state_machine.mmd` — job lifecycle state machine
-- `03_uml_templates.mmd` — class and sequence diagram templates
-- `artifacts/` — optional rendered outputs (SVG/PNG). Prefer not to commit large binaries.
+## Arquivos
 
-File header (recommended)
-```
-%%
-Author: Jeferson Oliveira de Sousa
-Purpose: short description
-Status: draft|reviewed|final
-Date: YYYY-MM-DD
-Reference: issue/ID
-%%
-```
+- [docs/diagrams/architecture.md](architecture.md)
+- [docs/diagrams/01_use_cases.md](01_use_cases.md)
+- [docs/diagrams/02_state_machine.md](02_state_machine.md)
+- [docs/diagrams/03_uml_templates.md](03_uml_templates.md)
 
-Render locally
-- VSCode: open file and use Mermaid preview extension.
-- Mermaid CLI (Node):
+## Visualizar localmente
+
+- VS Code: abra o arquivo e use uma extensão de preview Mermaid (ou preview Markdown que suporte Mermaid).
+
+## Renderizar SVG/PNG (opcional)
+
+Se você quiser gerar imagens para evidências/portfólio:
 
 ```bash
 npm install -g @mermaid-js/mermaid-cli
-mmdc -i 02_state_machine.mmd -o 02_state_machine.svg
+mmdc -i docs/diagrams/02_state_machine.md -o docs/artifacts/diagrams/02_state_machine.svg
 ```
 
-CI suggestion
-- Add a lightweight GitHub Action that runs `mmdc` for `.mmd` files changed in PRs and uploads rendered SVGs as artifacts or comments.
-
-Best practices
-- Keep diagrams small and focused (one responsibility per file).
-- Prefer SVG output for clarity and scalability.
-- Keep experimental/private variants in `private_docs/` or `.vscode/` and do not commit them.
+Placeholders para armazenar esse tipo de evidência: [docs/artifacts/README.md](../artifacts/README.md).

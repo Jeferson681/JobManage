@@ -1,117 +1,124 @@
-# Runbook: JobManager (dev scaffold)
+# OP_RUNBOOK — Operação e troubleshooting
 
-Objetivo
---------
-Procedimentos operacionais rápidos para incidentes comuns: aplicar migrações, recuperar jobs travados, reiniciar workers e inspecionar métricas.
+Objetivo: procedimentos operacionais rápidos para incidentes comuns: migrações, jobs travados, worker caindo, fila crescendo e coleta de evidências.
 
-Atenção inicial
----------------
-- Trabalhe em um ambiente com acesso ao banco de dados e às credenciais do deploy.
-- Não execute comandos destrutivos em produção sem backup e autorização.
+Referências:
 
-Aplicar migrações
------------------
-1. Defina o banco alvo (ex.: `JOBMANAGER_DB`) apontando para o URL/arquivo.
+- Como rodar localmente: [docs/RUN.md](RUN.md)
+- Semântica de cancelamento: [docs/adr/0003-cancel-semantics.md](adr/0003-cancel-semantics.md)
+- Retry/backoff: [docs/adr/0002-retry-policy.md](adr/0002-retry-policy.md)
+- Métricas: `GET /metrics`
 
-PowerShell:
+## 1) Health checks
+
+- Liveness: `GET /health` → 200 quando o processo está vivo
+- Readiness: `GET /ready` → 200 quando o serviço consegue falar com o DB
+- Métricas: `GET /metrics` → JSON com contagens básicas
+
+## 2) Migrações (Alembic)
+
+Windows / PowerShell:
+
 ```powershell
-$Env:JOBMANAGER_DB = 'C:\path\to\jobmanager.db'
-C:/Users/Jeferson/OneDrive/Documentos/JobManager/.venv/Scripts/python.exe -m alembic upgrade head
-```
-
-Linux/macOS:
-```bash
-export JOBMANAGER_DB=/path/to/jobmanager.db
-.venv/bin/python -m alembic upgrade head
+$Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
+python -m alembic upgrade head
 ```
 
 Rollback (com cuidado):
-```bash
-.venv/bin/python -m alembic downgrade -1
+
+```powershell
+python -m alembic downgrade -1
 ```
 
-Iniciar/Parar worker local
---------------------------
-- Rodar uma iteração única (útil para testes):
-  ```bash
-  .venv/bin/python -m jobmanager.worker.runner
-  ```
-- Rodar em loop (desenvolvimento):
-  ```bash
-  from jobmanager.worker.runner import run
-  run(worker_id='worker-1', poll_interval=1.0)
-  ```
+## 3) Worker — como iniciar e parar
 
-Detecção e resolução de jobs travados
-------------------------------------
-- Sintoma: `RUNNING` por mais tempo que `locked_until` indica ou contagem alta de `RUNNING`/`locked_until` vencidos.
-- Inspecionar via SQL:
-  ```sql
-  SELECT job_id, status, locked_until, worker_id FROM jobs WHERE status='RUNNING';
-  SELECT COUNT(*) FROM jobs WHERE status='RUNNING' AND locked_until <= datetime('now');
-  ```
-- Solução operacional (caso worker tenha caído):
-  1. Se o job deve ser reprocessado: marcar `status='QUEUED'`, `locked_until=NULL`, `worker_id=NULL`.
-     ```sql
-     UPDATE jobs SET status='QUEUED', locked_until=NULL, worker_id=NULL WHERE job_id='...';
-     ```
-  2. Se for necessário cancelar: `UPDATE jobs SET status='CANCEL_REQUESTED' WHERE job_id='...';` e aguardar worker cooperativo.
-  3. Para forçar cancelamento: `UPDATE jobs SET status='CANCELED', locked_until=NULL, worker_id=NULL WHERE job_id='...';` (use com cautela).
+Rodar em loop (desenvolvimento):
 
-Como investigar um job com falhas repetidas
------------------------------------------
-- Verifique `attempt`, `max_attempts`, `last_error`, `next_run_at`.
-- Se `FAILED_RETRYABLE` e `next_run_at` distante, é backoff em vigor (jitter aplicado).
-- Para reprovar manualmente ou acelerar retry, ajuste `next_run_at` para `datetime('now')`.
+```powershell
+$Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
+python -c "from jobmanager.worker.runner import run; run(worker_id='worker-1', poll_interval=1.0)"
+```
 
-Alertas e métricas mínimas
--------------------------
-- Alerta sugerido: `FAILED_RETRYABLE` crescendo rapidamente (indicador de downstream instability).
-- Alerta sugerido: muitos `QUEUED` sem consumo por > X minutos (worker unhealthy).
-- Métricas úteis: counts por `status`, `orphaned_running` (RUNNING com locked_until vencido), tempo médio entre `created_at` e `SUCCEEDED`.
+Rodar uma iteração (útil para depuração):
 
-Pré-mortem / pós-incidente curto
---------------------------------
-1. Colete logs (JSON) do período incidente com `job_id` relacionado.
-2. Capture DB state: `SELECT * FROM jobs WHERE job_id IN (...)`.
-3. Se mitigado, documente ação tomada e recursos afetados.
-4. Se recorrente, crie um ADR sobre política de retry/backoff ou DLQ.
+```powershell
+python -c "from jobmanager.worker.runner import run_once; print(run_once(worker_id='worker-1'))"
+```
 
-Contatos & responsabilidades
-----------------------------
-- Time SRE/ops: responsável por aplicar migrações e restaurar DB.
-- Time de Plataforma/Dev: responsável por analisar causas de falhas em `job` e corrigir código.
+## 4) Jobs travados / órfãos (lease expirado)
 
-Notas finais
------------
-- Mantenha este runbook sincronizado com alterações importantes no fluxo de trabalho (retry policy, locking, cancel semantics).
-- Para alterações no esquema, gere uma revisão Alembic com mensagem clara e aplique em staging antes de prod.
-# Operational Runbook
+Sintoma:
 
-This runbook contains quick recovery and operational steps for the JobManager scaffold.
+- Jobs em `RUNNING` por tempo maior que o lease
+- `orphaned_running` alto em `/metrics`
 
-1. Start locally
-- Create a venv and install dev deps: `python -m venv .venv && .venv\Scripts\pip install -r requirements-dev.txt`
-- Run the API for local testing: `uvicorn jobmanager.api.app:app --reload`
+Inspeção via SQLite (exemplo):
 
-2. Health checks
-- Liveness: GET `/health` — returns 200 when process is running.
-- Readiness: GET `/ready` — returns 200 when DB is reachable.
-- Metrics: GET `/metrics` — returns basic JSON operational counts.
+```sql
+SELECT job_id, status, locked_until, worker_id, attempt, max_attempts
+FROM jobs
+WHERE status='RUNNING'
+ORDER BY locked_until ASC;
+```
 
-3. Typical recovery steps
-- If the API cannot access the DB, ensure `JOBMANAGER_DB` points to a writable file and that file exists.
-- To reinitialize schema: run a small script that calls `jobmanager.storage.core.init_db(conn)` against the DB.
+Requeue manual (use com cuidado):
 
-4. Worker troubleshooting
-- The worker uses optimistic reservation. If jobs are stuck in `RUNNING` with expired `locked_until`, they will be counted as orphaned in `/metrics`.
-- To requeue a stuck job manually: `UPDATE jobs SET status='QUEUED', locked_until=NULL, worker_id=NULL WHERE job_id = '<id>'`.
+```sql
+UPDATE jobs
+SET status='QUEUED', locked_until=NULL, worker_id=NULL, updated_at=datetime('now')
+WHERE job_id='...';
+```
 
-5. Logs
-- Logs are emitted as JSON on the `jobmanager` logger. Look for `event` fields like `job.created`, `job.reserved`, `job.succeeded`, `job.failed`.
+Observação: o sistema foi desenhado para que, quando `locked_until` expira, o job volte a ser elegível para reserva automaticamente.
 
-6. Alerts and monitoring
-- Add alerting for high `FAILED_RETRYABLE` counts or rapidly growing `QUEUED` counts.
+## 5) Investigação de retries
 
-7. Contacts and runbook owner
-- Owner: Project maintainer
+O retry acontece quando o worker marca `FAILED_RETRYABLE` e define `next_run_at`.
+
+Checklist:
+
+- `attempt` e `max_attempts`
+- `last_error`
+- `next_run_at`
+
+Consulta:
+
+```sql
+SELECT job_id, status, attempt, max_attempts, next_run_at, last_error
+FROM jobs
+WHERE status IN ('FAILED_RETRYABLE','FAILED_FINAL')
+ORDER BY updated_at DESC;
+```
+
+## 6) Cancelamento (best-effort)
+
+Semântica:
+
+- API marca `CANCEL_REQUESTED`.
+- Worker coopera: após reservar, reconsulta e, se `CANCEL_REQUESTED`, marca `CANCELED`.
+
+Consulta:
+
+```sql
+SELECT job_id, status, locked_until, worker_id
+FROM jobs
+WHERE status IN ('CANCEL_REQUESTED','CANCELED')
+ORDER BY updated_at DESC;
+```
+
+## 7) Coleta de evidências (artefatos)
+
+Salvar no diretório de placeholders:
+
+- [docs/artifacts/README.md](artifacts/README.md)
+
+Checklist sugerido:
+
+- logs JSON do período (stdout)
+- dump do `/metrics`
+- consultas SQL usadas
+- link/print do run do GitHub Actions
+
+## 8) Contatos
+
+- Owner/Maintainer: Jeferson Oliveira de Sousa — jefersonoliveiradesousa681@gmail.com
