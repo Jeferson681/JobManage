@@ -23,9 +23,8 @@ jobs:
             - name: Install dependencies
               run: |
                   python -m pip install --upgrade pip
-                  pip install -r requirements.txt -r requirements-dev.txt
-                  # install package in editable mode (includes local package for tests)
-                  python -m pip install -e .
+                  # install project and dev extras
+                  python -m pip install -e '.[dev]'
             - name: Run tests with coverage
               run: |
                   coverage run -m pytest -q
@@ -33,7 +32,7 @@ jobs:
             - name: Upload coverage report
               uses: actions/upload-artifact@v4
               with:
-                  name: coverage-report
+                  name: coverage-report-tests
                   path: coverage.xml
 
     integration_e2e:
@@ -49,16 +48,23 @@ jobs:
               uses: actions/setup-python@v4
               with:
                   python-version: "${{ matrix.python-version }}"
-            - name: Install dependencies
+                  cache: 'pip'
+            - name: Install dependencies and package
               run: |
                   python -m pip install --upgrade pip
-                  pip install -r requirements.txt -r requirements-dev.txt
-            - name: Install package (editable)
+                  python -m pip install -e '.[dev]'
+            - name: Run integration tests with coverage
               run: |
-                  python -m pip install -e .
-            - name: Run integration tests
+                  coverage run -m pytest tests/integration -q
+                  coverage xml -i -o coverage-integration.xml
+            - name: Run e2e tests with coverage
               run: |
-                  pytest tests/integration -q
-            - name: Run e2e tests
-              run: |
-                  pytest tests/e2e -q
+                  coverage run -m pytest tests/e2e -q
+                  coverage xml -i -o coverage-e2e.xml
+            - name: Upload integration and e2e coverage
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-report-integration-e2e
+                  path: |
+                    coverage-integration.xml
+                    coverage-e2e.xml
