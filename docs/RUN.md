@@ -88,6 +88,9 @@ $Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
 python scripts\demo.py | Tee-Object -FilePath docs\artifacts\runs\demo_stdout.log
 ```
 
+Note: `scripts\demo.py` writes directly to the SQLite file you pass via `--db` (default: `./demo.db`).
+If you want `GET /metrics` to reflect the demo state, start the API with `JOBMANAGER_DB` pointing to the same file.
+
 ### 7.2 Create a job via API (cURL)
 
 ```bash

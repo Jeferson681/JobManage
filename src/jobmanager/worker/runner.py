@@ -86,6 +86,11 @@ def run_once(worker_id: str = "worker-1") -> Optional[str]:
     if not job:
         return None
     job_id = job["job_id"]
+
+    # reserve_next can finalize pre-canceled jobs without transitioning them
+    # to RUNNING. In that case there is no work to do.
+    if job.get("status") == "CANCELED":
+        return job_id
     try:
         # Re-fetch job to observe any cancellation request set after reservation
         from ..storage.core import get_job as _get_job
