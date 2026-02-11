@@ -1,22 +1,22 @@
-# RUN — Como rodar e reproduzir cenários
+# RUN — Local execution and scenarios
 
-Objetivo: passos **reprodutíveis** para executar a API e o worker localmente, aplicar migrações e coletar evidências (artefatos) do laboratório.
+This guide provides **reproducible** steps to run the API and worker locally, apply migrations, and capture execution artifacts (logs, metrics, outputs) for inspection.
 
-Referências:
+References:
 
-- Hub técnico: [docs/README-TECH.md](README-TECH.md)
-- Contrato da API: [docs/API_CONTRACT.md](API_CONTRACT.md)
-- Artefatos/Evidências: [docs/artifacts/README.md](artifacts/README.md)
+- Tech hub: [docs/README-TECH.md](README-TECH.md)
+- API contract: [docs/API_CONTRACT.md](API_CONTRACT.md)
+- Artifacts: [docs/artifacts/README.md](artifacts/README.md)
 
-## 1) Pré-requisitos
+## 1) Prerequisites
 
 - Git
-- Python 3.11+ (CI usa 3.11; local pode ser mais novo)
-- (Opcional) Make
+- Python 3.11+ (CI uses 3.11; local can be newer)
+- (Optional) Make
 
-Observação: Docker/Compose ainda não fazem parte do repositório. Esta seção fica como placeholder para quando adicionarmos `Dockerfile` e `docker-compose.yml`.
+Note: Docker/Compose are not part of this repository yet. This section is reserved for when `Dockerfile` and `docker-compose.yml` exist.
 
-## 2) Ambiente local (venv) — Windows / PowerShell
+## 2) Local environment (venv) — Windows / PowerShell
 
 ```powershell
 python -m venv .venv
@@ -25,44 +25,44 @@ python -m pip install -U pip
 python -m pip install -e '.[dev]'
 ```
 
-Registro de versão (opcional, evidência):
+Version record (optional, as evidence):
 
 ```powershell
 python --version
 python -m pip freeze > docs\artifacts\pinned-requirements.txt
 ```
 
-## 3) Banco de dados (SQLite) e variável de ambiente
+## 3) Database (SQLite) and environment variable
 
-Por padrão o projeto usa SQLite em memória se `JOBMANAGER_DB` não estiver definido. Para um DB persistente:
+By default the project uses in-memory SQLite when `JOBMANAGER_DB` is not set. For a persistent DB:
 
 ```powershell
 $Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
 ```
 
-## 4) Migrações (Alembic)
+## 4) Migrations (Alembic)
 
 ```powershell
 $Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
 python -m alembic upgrade head
 ```
 
-Nota: o Alembic aceita `JOBMANAGER_DB` como caminho (ex.: `C:\...\jobmanager.db`) ou URL SQLite (`sqlite:///...`).
+Note: Alembic accepts `JOBMANAGER_DB` as a path (e.g. `C:\...\jobmanager.db`) or as a SQLite URL (`sqlite:///...`).
 
-## 5) Subir a API
+## 5) Start the API
 
 ```powershell
 $Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
 python -m uvicorn jobmanager.api.app:app --reload --port 8000
 ```
 
-Endpoints úteis:
+Useful endpoints:
 
 - `GET http://localhost:8000/health`
 - `GET http://localhost:8000/ready`
 - `GET http://localhost:8000/metrics`
 
-## 6) Rodar o worker
+## 6) Run the worker
 
 Em outro terminal:
 
@@ -72,15 +72,15 @@ $Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
 python -c "from jobmanager.worker.runner import run; run(worker_id='worker-1', poll_interval=1.0)"
 ```
 
-Rodar apenas 1 iteração (útil para depuração):
+Run a single iteration (useful for debugging):
 
 ```powershell
 python -c "from jobmanager.worker.runner import run_once; print(run_once(worker_id='worker-1'))"
 ```
 
-## 7) Reproduzir cenários (experimentos)
+## 7) Reproduce scenarios
 
-### 7.1 Demo rápida (recomendado)
+### 7.1 Quick demo (example)
 
 ```powershell
 .venv\Scripts\Activate.ps1
@@ -88,7 +88,7 @@ $Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
 python scripts\demo.py | Tee-Object -FilePath docs\artifacts\runs\demo_stdout.log
 ```
 
-### 7.2 Criar job via API (cURL)
+### 7.2 Create a job via API (cURL)
 
 ```bash
 curl -X POST http://localhost:8000/jobs \
@@ -97,23 +97,23 @@ curl -X POST http://localhost:8000/jobs \
 	-d '{"job_type":"demo","payload":{"x":1},"max_attempts":3}'
 ```
 
-## 8) Checagens (qualidade e testes)
+## 8) Checks (quality and tests)
 
 ```powershell
 python -m pre_commit run --all-files
 python -m pytest -q
 ```
 
-Cobertura (evidência):
+Coverage (evidence):
 
 ```powershell
 python -m pytest --cov=src --cov-report=term-missing --cov-report=xml
 ```
 
-## 9) Placeholders (Docker)
+## 9) Docker (reserved section)
 
-Quando existirem `Dockerfile` e `docker-compose.yml`, documentar aqui:
+When `Dockerfile` and `docker-compose.yml` exist, document here:
 
-- como buildar e rodar
-- como configurar `JOBMANAGER_DB`
-- como coletar logs/artefatos do compose
+- how to build and run
+- how to configure `JOBMANAGER_DB`
+- how to collect logs/artifacts from compose

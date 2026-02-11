@@ -37,7 +37,7 @@ sequenceDiagram
     participant DB as JobStore
     participant W as Worker
 
-    U->>API: POST /jobs (payload, idempotency_key)
+    U->>API: POST /jobs (payload, Idempotency-Key)
     API->>DB: create job (job record)
     DB-->>API: job_id
     API-->>U: 200 OK Job

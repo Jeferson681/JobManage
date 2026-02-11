@@ -1,139 +1,152 @@
-# README-TECH — JobManager (hub técnico)
+# README-TECH — JobManager (tech hub)
 
-Este é o **ponto central** da documentação técnica do JobManager.
+JobManager is a **lease-based** job orchestration system that uses the database for coordination: controlled concurrency, explicit states, a robust retry policy, and minimal operational signals.
 
-Objetivo do projeto: um laboratório backend (API + worker + banco como fila) para aprender semântica de jobs, concorrência, retry/backoff, cancelamento best-effort e observabilidade mínima.
+This document is the project's technical entry point.
 
-## Navegação rápida
+## System principles
 
-- Como rodar e reproduzir cenários: [docs/RUN.md](RUN.md)
-- Contrato da API (o que a API promete hoje): [docs/API_CONTRACT.md](API_CONTRACT.md)
-- Operação/Incidentes (runbook): [docs/OP_RUNBOOK.md](OP_RUNBOOK.md)
-- Decisões (índice) e ADRs: [docs/DECISIONS.md](DECISIONS.md) e [docs/adr/](adr/)
-- Diagramas (Mermaid): [docs/diagrams/](diagrams/)
-- Handover (template): [docs/HANDOVER.md](HANDOVER.md)
-- Artefatos/Evidências (placeholders): [docs/artifacts/README.md](artifacts/README.md)
+- Database as coordinator (no external queue)
+- State-driven execution (explicit state machine)
+- Lease-based reservation for temporary exclusivity
+- Jittered retry/backoff for stability under transient failures
+- Idempotent job creation
+- Built-in operability signals (health/ready/metrics + logs)
 
-## Arquitetura (resumo)
+## Quick navigation
 
-Componentes:
+- Run and reproduce scenarios: [docs/RUN.md](RUN.md)
+- API contract: [docs/API_CONTRACT.md](API_CONTRACT.md)
+- Operations (runbook): [docs/OP_RUNBOOK.md](OP_RUNBOOK.md)
+- Decisions and ADRs: [docs/DECISIONS.md](DECISIONS.md) and [docs/adr/](adr/)
+- Diagrams: [docs/diagrams/](diagrams/)
+- Evidence gallery: [docs/artifacts/GALLERY.md](artifacts/GALLERY.md)
 
-- **API (FastAPI)**: cria jobs, consulta status, solicita cancelamento, expõe health/ready/metrics.
-- **Worker**: faz polling no banco, reserva por lease e executa jobs.
-- **Banco (SQLite por padrão)**: é a fonte da verdade (jobs + estados + locks + agendamento de retry).
+## Architecture (summary)
 
-Diagrama conceitual: veja [docs/diagrams/architecture.md](diagrams/architecture.md).
+Components:
 
-## Modelo de dados (jobs)
+- **API (FastAPI)**: creates jobs, reads status, requests cancellation, exposes health/ready/metrics.
+- **Worker**: polls the database, reserves jobs via leases, and executes them.
+- **Database (SQLite by default)**: source of truth (jobs + state + locks + retry scheduling).
 
-Fonte da verdade: tabela `jobs` (SQLite).
+Intentional design choice: the database is also the **coordination mechanism** (no external queue), highlighting lease-based concurrency control and state-driven execution.
 
-Campos principais (intenção):
+Conceptual diagram: see [docs/diagrams/architecture.md](diagrams/architecture.md).
 
-- `job_id`: identidade e rastreio.
-- `status`: máquina de estados explícita (ver [state machine](diagrams/02_state_machine.md)).
-- `attempt` / `max_attempts`: controle de retry.
-- `locked_until` / `worker_id`: lease para exclusividade temporária.
-- `next_run_at`: agendamento (retry/backoff) — o worker só reserva quando estiver “due”.
-- `payload`, `result`, `last_error`: auditabilidade (JSON serializado no banco).
+## Data model (jobs)
 
-Referências:
+Source of truth: `jobs` table (SQLite).
 
-- Schema em runtime: [src/jobmanager/storage/core.py](../src/jobmanager/storage/core.py)
-- Migração Alembic inicial: [alembic/versions/0001_create_jobs.py](../alembic/versions/0001_create_jobs.py)
+Key fields (intent):
 
-## API (o que existe hoje)
+- `job_id`: identity and traceability.
+- `status`: explicit state machine (see [state machine](diagrams/02_state_machine.md)).
+- `attempt` / `max_attempts`: retry control.
+- `locked_until` / `worker_id`: lease for temporary exclusivity.
+- `next_run_at`: scheduling (retry/backoff) — workers only reserve jobs that are due.
+- `payload`, `result`, `last_error`: auditability (JSON serialized in the database).
 
-Implementação: [src/jobmanager/api/app.py](../src/jobmanager/api/app.py)
+`status` is treated as behavior: transitions are controlled and validated to reduce invalid/ambiguous states and keep the lifecycle auditable.
+
+References:
+
+- Runtime schema: [src/jobmanager/storage/core.py](../src/jobmanager/storage/core.py)
+- Initial Alembic migration: [alembic/versions/0001_create_jobs.py](../alembic/versions/0001_create_jobs.py)
+
+## API (current surface)
+
+Implementation: [src/jobmanager/api/app.py](../src/jobmanager/api/app.py)
 
 Endpoints:
 
 - `POST /jobs`
   - Request: `{ job_type, payload, max_attempts? }`
-  - Idempotência: via header `Idempotency-Key` (opcional)
-  - Response (hoje): Job completo (mesmo formato do `GET /jobs/{job_id}`)
+  - Idempotency: `Idempotency-Key` header (optional)
+  - Response: full Job object (same as `GET /jobs/{job_id}`)
 - `GET /jobs/{job_id}`
-  - Response: job completo (inclui `payload/result/last_error` decodificados)
+  - Response: full Job object (includes decoded `payload/result/last_error`)
 - `POST /jobs/{job_id}/cancel`
-  - Semântica: best-effort; marca `CANCEL_REQUESTED`
-  - Response (hoje): Job completo (com `status = CANCEL_REQUESTED`)
+  - Semantics: best-effort; marks `CANCEL_REQUESTED`
+  - Response: Job object with `status = CANCEL_REQUESTED`
 
-Detalhes completos: [docs/API_CONTRACT.md](API_CONTRACT.md).
+Details: [docs/API_CONTRACT.md](API_CONTRACT.md).
 
 ## Worker (internals)
 
-Implementação: [src/jobmanager/worker/runner.py](../src/jobmanager/worker/runner.py)
+Implementation: [src/jobmanager/worker/runner.py](../src/jobmanager/worker/runner.py)
 
-Comportamentos documentáveis:
+The worker is cooperative and resilient: it reserves via lease and re-validates state before executing to preserve consistency under concurrency.
 
-- Reserva: `reserve_next(conn, worker_id, lease_seconds=...)` (status `QUEUED` ou `FAILED_RETRYABLE`, respeita `next_run_at` e `locked_until`).
-- Execução: o scaffold atual simula sucesso imediato (marca `SUCCEEDED`).
-- Cancelamento cooperativo: após reservar, reconsulta o job e, se `CANCEL_REQUESTED`, marca `CANCELED`.
+Documentable behaviors:
+
+- Reservation: `reserve_next(conn, worker_id, lease_seconds=...)` (status `QUEUED` or `FAILED_RETRYABLE`, respects `next_run_at` and `locked_until`).
+- Execution: current scaffold simulates execution (marks `SUCCEEDED`).
+- Cooperative cancellation: after reservation, re-reads the job and, if `CANCEL_REQUESTED`, marks `CANCELED`.
 
 ### Retry / backoff
 
-Em caso de exceção durante a execução, aplica:
+On exceptions during execution:
 
-- Exponencial com full jitter: `delay = uniform(0, min(300, base ** attempt))`
-- Marca `FAILED_RETRYABLE` e seta `next_run_at`.
-- Quando `attempt >= max_attempts`, marca `FAILED_FINAL`.
+- Exponential full jitter: `delay = uniform(0, min(300, base ** attempt))`
+- Marks `FAILED_RETRYABLE` and sets `next_run_at`.
+- When `attempt >= max_attempts`, marks `FAILED_FINAL`.
+
+The intent is to avoid thundering herds and keep behavior stable under intermittent failures.
 
 ADR: [docs/adr/0002-retry-policy.md](adr/0002-retry-policy.md).
 
-## Observabilidade
+## Observability
+
+Observability is treated as a first-class requirement: the job lifecycle is inspectable from the outside.
 
 Logs:
 
-- JSON via `log_event(event, **fields)` em [src/jobmanager/logging.py](../src/jobmanager/logging.py)
-- Eventos esperados: `job.created`, `job.reserved`, `job.succeeded`, `job.failed`, `job.failed_final`, `job.canceled`, `job.status_changed`
+- JSON via `log_event(event, **fields)` in [src/jobmanager/logging.py](../src/jobmanager/logging.py)
+- Expected events: `job.created`, `job.reserved`, `job.succeeded`, `job.failed`, `job.failed_final`, `job.canceled`, `job.status_changed`
 
 Endpoints:
 
 - `GET /health`: liveness
-- `GET /ready`: readiness (consegue falar com o DB)
-- `GET /metrics`: contagens básicas (`jobs_by_status`, `retry_jobs`, `orphaned_running`)
+- `GET /ready`: readiness (database connectivity)
+- `GET /metrics`: basic counters (`jobs_by_status`, `retry_jobs`, `orphaned_running`)
 
 Runbook: [docs/OP_RUNBOOK.md](OP_RUNBOOK.md).
 
-## Migrações (Alembic)
+## Migrations (Alembic)
 
-O projeto inclui scaffold do Alembic. Para instruções reprodutíveis (Windows/Linux), ver [docs/RUN.md](RUN.md).
+The project includes an Alembic scaffold. For reproducible steps (Windows/Linux), see [docs/RUN.md](RUN.md).
 
-## Testes e estratégia
+## Tests
 
-Estrutura:
+Layout:
 
 - Unit: `tests/unit/`
 - Integration: `tests/integration/`
 - E2E: `tests/e2e/`
 
-O foco dos testes é provar semântica: idempotência, lease/concorrência, retry+jitter determinístico e cancelamento cooperativo.
+Tests validate behavioral semantics and system invariants, not just internal implementation details.
 
-CI: workflow em [ .github/workflows/tests.yml](../.github/workflows/tests.yml) (coverage mínimo 90%).
+CI: workflow in [ .github/workflows/tests.yml](../.github/workflows/tests.yml) (minimum coverage 90%).
 
-## Artefatos e evidências
+## Artifacts and evidence
 
-Para portfólio, esta pasta é o “envelope” de evidências reprodutíveis:
+Project artifacts live under `docs/artifacts/`.
 
-- [docs/artifacts/README.md](artifacts/README.md)
+- Gallery (organized screenshots): [docs/artifacts/GALLERY.md](artifacts/GALLERY.md)
+- Assisted run (files): `docs/artifacts/assist_run/`
 
-Execução assistida (artefatos gerados localmente): `docs/artifacts/assist_run/`.
+Examples of evidence:
 
-Sugestão de evidências:
-
-- Saída do `scripts/demo.py`
+- `scripts/demo.py` output
 - Coverage XML
-- Logs JSON de um cenário de retry/cancel
-- Prints do GitHub Actions passando
+- JSON logs from a retry/cancel scenario
+- GitHub Actions screenshots
 
-### Artefatos & Diagramas (política consolidada)
+### File size (GitHub)
 
-Os artefatos reprodutíveis ficam em `docs/artifacts/`.
+- Prefer small text files (TXT/MD/JSON) when possible.
+- Small PNGs (text screenshots, metrics) are acceptable for GitHub viewing.
+- Do not commit large databases or sensitive data; prefer filtered dumps and text.
 
-- Prefira arquivos pequenos e texto (TXT/MD/JSON) sempre que possível.
-- PNGs pequenos (screenshots de texto, métricas, gráficos gerados) são aceitáveis para visualização no GitHub.
-- Não versionar bases de dados grandes ou arquivos com dados sensíveis; prefira dumps filtrados e texto.
-
-Diagramas gerados (Mermaid/SVG) vivem em `docs/diagrams/` e devem ser mantidos legíveis e pequenos.
-
-Use `docs/README-TECH.md` como o hub técnico; os READMEs locais em subpastas apontam para aqui como canônico.
+Diagrams live in `docs/diagrams/` and should remain readable and small.

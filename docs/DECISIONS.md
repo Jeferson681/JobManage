@@ -1,24 +1,24 @@
-# Decisões (índice) e ADRs
+# Decisions index and ADRs
 
-Este arquivo é um **índice** para as decisões do projeto.
+This file is an **index** of project decisions.
 
-Regra prática:
+Rule of thumb:
 
-- Decisões “grandes” (arquitetura/semântica) viram ADR em `docs/adr/`.
-- Este arquivo aponta para o ADR e pode registrar decisões menores (tooling, convenções).
+- Significant decisions (architecture/semantics) become ADRs under `docs/adr/`.
+- This file links to ADRs and may record smaller decisions (tooling, conventions).
 
-## ADRs (aceitos)
+## Accepted ADRs
 
-- [DB como fila (fonte da verdade)](adr/0001-db-as-queue.md)
-- [Retry policy (exponencial + full jitter)](adr/0002-retry-policy.md)
-- [Cancelamento cooperativo (best-effort)](adr/0003-cancel-semantics.md)
+- [DB as queue (source of truth)](adr/0001-db-as-queue.md)
+- [Retry policy (exponential + full jitter)](adr/0002-retry-policy.md)
+- [Cooperative cancellation (best-effort)](adr/0003-cancel-semantics.md)
 
-## Convenções e decisões menores
+## Conventions and smaller decisions
 
-- Linguagem: documentação principal em `docs/` (README raiz só faz “60 segundos” + links).
-- Observabilidade mínima: logs JSON + endpoints `/health`, `/ready`, `/metrics`.
-- CI: cobertura mínima 90% no workflow de testes.
+- Language: primary documentation lives under `docs/` (root README is an overview + links).
+- Minimal observability: JSON logs + `/health`, `/ready`, `/metrics` endpoints.
+- CI: minimum coverage 90% in the test workflow.
 
-## Template (para novos ADRs)
+## Template (for new ADRs)
 
-Use o mesmo formato dos arquivos em `docs/adr/`.
+Use the same format as files under `docs/adr/`.

@@ -1,12 +1,12 @@
 # API Contract — JobManager
 
-Este documento define a API mínima do JobManager **conforme implementada hoje**.
+This document defines the JobManager minimum API **as implemented today**.
 
 Base URL: `/` (service root)
 
-Implementação: [src/jobmanager/api/app.py](../src/jobmanager/api/app.py)
+Implementation: [src/jobmanager/api/app.py](../src/jobmanager/api/app.py)
 
-## Modelos
+## Models
 
 ### JobCreate (request)
 
@@ -18,14 +18,14 @@ Implementação: [src/jobmanager/api/app.py](../src/jobmanager/api/app.py)
 }
 ```
 
-Notas:
+Notes:
 
-- `max_attempts` é opcional (padrão 3).
-- Não existe `idempotency_key` no body atualmente.
+- `max_attempts` is optional (default: 3).
+- There is no `idempotency_key` field in the request body.
 
-### Job (response de GET)
+### Job (GET response)
 
-`GET /jobs/{job_id}` retorna um objeto com os campos persistidos. Exemplo (parcial):
+`GET /jobs/{job_id}` returns an object with persisted fields. Example (partial):
 
 ```json
 {
@@ -47,18 +47,18 @@ Notas:
 }
 ```
 
-Observação: a implementação atual usa `datetime.now(timezone.utc).isoformat()`, então você verá timestamps como `2026-02-05T12:00:00+00:00` (RFC3339/ISO8601 UTC).
+Note: the current implementation uses `datetime.now(timezone.utc).isoformat()`, so timestamps look like `2026-02-05T12:00:00+00:00` (RFC3339/ISO8601 UTC).
 
 ## Endpoints
 
 ### 1) Create job — `POST /jobs`
 
-- Description: cria um novo job.
+- Description: creates a new job.
 
-Idempotência (opcional):
+Idempotency (optional):
 
-- Header: `Idempotency-Key: <string>`
-- Se um job com a mesma chave existir, a API retorna o mesmo `job_id` e **não cria duplicado**.
+  - Header: `Idempotency-Key: <string>`
+  - If a job with the same key exists, the API returns the same `job_id` and **does not create a duplicate**.
 Request (JSON):
 
 ```json
@@ -69,13 +69,13 @@ Request (JSON):
 }
 ```
 
-Responses (hoje):
+Responses (current):
 
-- `200 OK` — criado **ou** idempotente.
-  - Body: **Job (objeto completo)** (mesmo formato do `GET /jobs/{job_id}`).
-- `400 Bad Request` — erro de validação
+- `200 OK` — created **or** idempotent path.
+  - Body: **Job (full object)** (same as `GET /jobs/{job_id}`).
+- `400 Bad Request` — validation error
 
-Example cURL (create):
+Example (cURL):
 
 ```bash
 curl -X POST http://localhost:8000/jobs \
@@ -86,12 +86,12 @@ curl -X POST http://localhost:8000/jobs \
 
 ### 2) Get job — `GET /jobs/{job_id}`
 
-- Description: retrieve job state and metadata.
+- Description: returns job state and metadata.
 - Responses:
   - `200 OK` — job object
   - `404 Not Found` — unknown `job_id`
 
-Example cURL (get):
+Example (cURL):
 
 ```bash
 curl http://localhost:8000/jobs/00000000-0000-0000-0000-000000000000
@@ -99,14 +99,14 @@ curl http://localhost:8000/jobs/00000000-0000-0000-0000-000000000000
 
 ### 3) Cancel job — `POST /jobs/{job_id}/cancel`
 
-- Description: solicita cancelamento (best-effort). A API marca `CANCEL_REQUESTED`.
+- Description: requests cancellation (best-effort). The API marks `CANCEL_REQUESTED`.
 
-Responses (hoje):
+Responses (current):
 
-- `200 OK` — Job (objeto completo) com `status = "CANCEL_REQUESTED"`.
+- `200 OK` — Job (full object) with `status = "CANCEL_REQUESTED"`.
 - `404 Not Found`
 
-Example cURL (cancel):
+Example (cURL):
 
 ```bash
 curl -X POST http://localhost:8000/jobs/00000000-0000-0000-0000-000000000000/cancel
@@ -124,9 +124,9 @@ curl -X POST http://localhost:8000/jobs/00000000-0000-0000-0000-000000000000/can
 
 ## Idempotency rules
 
-- A idempotência é baseada no header `Idempotency-Key`.
-- A API retorna `200` tanto na criação quanto no caminho idempotente.
-- Requisições subsequentes com a mesma chave retornam o mesmo `job_id` e **não criam duplicado**.
+- Idempotency is based on the `Idempotency-Key` header.
+- The API returns `200` for both create and idempotent paths.
+- Subsequent requests with the same key return the same `job_id` and **do not create duplicates**.
 
 ## Error fields
 
@@ -142,7 +142,7 @@ curl -X POST http://localhost:8000/jobs/00000000-0000-0000-0000-000000000000/can
 - `locked_until` + `worker_id` implement the lease; if `locked_until` is in the past the job becomes eligible for reservation again.
 - `next_run_at` controls scheduling for retries and delayed jobs.
 
-## Run examples (local dev)
+## Local execution examples
 
 Start API (FastAPI/uvicorn):
 
@@ -150,8 +150,8 @@ Start API (FastAPI/uvicorn):
 python -m uvicorn jobmanager.api.app:app --reload
 ```
 
-Seed a job (curl example above) and run a worker process that polls and reserves jobs.
+Seed a job (cURL example above) and run a worker process that polls and reserves jobs.
 
 ## Change log
 
-- 2026-02-10: `POST /jobs` e `POST /jobs/{job_id}/cancel` retornam Job completo; adicionados `started_at`/`finished_at`
+- 2026-02-10: `POST /jobs` and `POST /jobs/{job_id}/cancel` return the full Job object; added `started_at`/`finished_at`

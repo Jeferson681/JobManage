@@ -1,69 +1,63 @@
-# JobManager — 60 segundos
+# JobManager — overview
 
-JobManager é um laboratório backend minimalista para **enfileirar jobs** em banco e **executar via worker**, com semântica explícita (lease, retry, cancel best-effort) e observabilidade mínima.
+JobManager is a job orchestration system: an API that creates jobs and a worker that executes them from a database-backed queue.
 
-API:
+What this project demonstrates:
+- idempotency (`Idempotency-Key`)
+- lease-based concurrency control (worker reserves via a time-bound lock)
+- retry/backoff with jitter + best-effort cancellation
+- basic operability signals (`/health`, `/ready`, `/metrics`)
 
-- `POST /jobs` (idempotência via header `Idempotency-Key`)
-- `GET /jobs/{job_id}`
-- `POST /jobs/{job_id}/cancel`
+## Program flow
 
-## Fluxo (alto nível)
-
-1) A API recebe `POST /jobs` e persiste um job com status `QUEUED`.
-
-2) O worker faz polling no banco e reserva um job elegível via lease (`locked_until` + `worker_id`), marcando `RUNNING`.
-
-3) O worker finaliza marcando `SUCCEEDED` / `FAILED_RETRYABLE` / `FAILED_FINAL` / `CANCELED` e preenchendo timestamps (`started_at`, `finished_at`).
-
-## Rodar rápido (Windows / PowerShell)
-
-```powershell
-.venv\Scripts\Activate.ps1
-python -m pip install -e '.[dev]'
-
-# opcional: usar um arquivo SQLite persistente
-$Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
-
-# API
-python -m uvicorn jobmanager.api.app:app --reload --port 8000
+```mermaid
+flowchart LR
+  C[Client] -->|POST /jobs| A[API]
+  A -->|insert job row| D[(DB)]
+  W[Worker] -->|poll + reserve (lease)| D
+  W -->|update status/result| D
+  A -->|GET /health /ready /metrics| O[Operability]
+  W -->|structured logs| O
 ```
 
-Worker (em outro terminal):
+## Docs
+
+- Run guide (Windows/Linux): [docs/RUN.md](docs/RUN.md)
+- Tech hub: [docs/README-TECH.md](docs/README-TECH.md) (EN) · [docs/README-TECH.pt-BR.md](docs/README-TECH.pt-BR.md) (PT-BR)
+- API contract: [docs/API_CONTRACT.md](docs/API_CONTRACT.md)
+- Ops runbook: [docs/OP_RUNBOOK.md](docs/OP_RUNBOOK.md)
+- Evidence gallery: [docs/artifacts/GALLERY.md](docs/artifacts/GALLERY.md)
+- Decisions/ADRs: [docs/DECISIONS.md](docs/DECISIONS.md)
+
+## Run (preview)
+
+Detailed steps and variants: [docs/RUN.md](docs/RUN.md)
+
+API (Windows / PowerShell):
 
 ```powershell
-.venv\Scripts\Activate.ps1
-$Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
-python -c "from jobmanager.worker.runner import run; run(worker_id='worker-1', poll_interval=1.0)"
-```
-
-````markdown
-# JobManager — Overview (60s)
-
-JobManager é um laboratório pequeno: uma API que enfileira jobs e um worker que os executa.
-
-Principais pontos:
-- `POST /jobs` — cria job (idempotência via `Idempotency-Key`)
-- `GET /jobs/{job_id}` — consulta
-- `POST /jobs/{job_id}/cancel` — pedido de cancelamento (best-effort)
-
-Run rápido (PowerShell):
-
-```powershell
+python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -e '.[dev]'
 python -m uvicorn jobmanager.api.app:app --reload --port 8000
 ```
 
-Worker (outro terminal):
+Worker (separate terminal):
 
 ```powershell
 .venv\Scripts\Activate.ps1
 python -c "from jobmanager.worker.runner import run; run(worker_id='worker-1', poll_interval=1.0)"
 ```
 
-Docs técnicas e evidências detalhadas: [docs/README-TECH.md](docs/README-TECH.md)
+<details>
+<summary>Preview (3 screenshots)</summary>
 
-Licença: MIT — [LICENSE](LICENSE)
+![Demo output (part 1)](docs/artifacts/assist_run/demo_output_part1.png)
 
-````
+![Health](docs/artifacts/assist_run/health.png)
+
+![Metrics](docs/artifacts/assist_run/metrics.png)
+
+</details>
+
+License: MIT — [LICENSE](LICENSE)
