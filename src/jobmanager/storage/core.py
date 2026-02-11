@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   worker_id TEXT,
   result TEXT,
   last_error TEXT,
+    started_at TEXT,
+    finished_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -129,10 +131,11 @@ def reserve_next(conn: sqlite3.Connection, worker_id: str, lease_seconds: int = 
     job_id = row[0]
     sql_update = (
         "UPDATE jobs SET status = 'RUNNING', worker_id = ?, locked_until = ?, "
-        "attempt = attempt + 1, updated_at = ? "
+        "attempt = attempt + 1, started_at = COALESCE(started_at, ?), updated_at = ? "
         "WHERE job_id = ? AND (locked_until IS NULL OR locked_until <= ?)"
     )
-    cur.execute(sql_update, (worker_id, lease_until, _now_iso(), job_id, now_iso))
+    now_started = _now_iso()
+    cur.execute(sql_update, (worker_id, lease_until, now_started, _now_iso(), job_id, now_iso))
     if cur.rowcount == 0:
         conn.commit()
         return None
@@ -169,6 +172,8 @@ def update_job(conn: sqlite3.Connection, job_id: str, **fields) -> None:
         "max_attempts": "UPDATE jobs SET max_attempts = ?, updated_at = ? WHERE job_id = ?",
         "idempotency_key": "UPDATE jobs SET idempotency_key = ?, updated_at = ? WHERE job_id = ?",
         "payload": "UPDATE jobs SET payload = ?, updated_at = ? WHERE job_id = ?",
+        "started_at": "UPDATE jobs SET started_at = ?, updated_at = ? WHERE job_id = ?",
+        "finished_at": "UPDATE jobs SET finished_at = ?, updated_at = ? WHERE job_id = ?",
     }
 
     cur = conn.cursor()

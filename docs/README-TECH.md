@@ -51,12 +51,12 @@ Endpoints:
 - `POST /jobs`
   - Request: `{ job_type, payload, max_attempts? }`
   - Idempotência: via header `Idempotency-Key` (opcional)
-  - Response (hoje): `{ job_id, status }` (não retorna o job completo)
+  - Response (hoje): Job completo (mesmo formato do `GET /jobs/{job_id}`)
 - `GET /jobs/{job_id}`
   - Response: job completo (inclui `payload/result/last_error` decodificados)
 - `POST /jobs/{job_id}/cancel`
   - Semântica: best-effort; marca `CANCEL_REQUESTED`
-  - Response (hoje): `{ job_id, status }`
+  - Response (hoje): Job completo (com `status = CANCEL_REQUESTED`)
 
 Detalhes completos: [docs/API_CONTRACT.md](API_CONTRACT.md).
 
@@ -111,11 +111,13 @@ O foco dos testes é provar semântica: idempotência, lease/concorrência, retr
 
 CI: workflow em [ .github/workflows/tests.yml](../.github/workflows/tests.yml) (coverage mínimo 90%).
 
-## Artefatos e evidências (placeholders)
+## Artefatos e evidências
 
 Para portfólio, esta pasta é o “envelope” de evidências reprodutíveis:
 
 - [docs/artifacts/README.md](artifacts/README.md)
+
+Execução assistida (artefatos gerados localmente): `docs/artifacts/assist_run/`.
 
 Sugestão de evidências:
 

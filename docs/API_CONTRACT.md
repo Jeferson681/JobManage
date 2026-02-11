@@ -40,10 +40,14 @@ Notas:
   "worker_id": "string|null",
   "result": null,
   "last_error": null,
+  "started_at": "2026-02-05T12:00:00Z|null",
+  "finished_at": "2026-02-05T12:00:00Z|null",
   "created_at": "2026-02-05T12:00:00Z",
   "updated_at": "2026-02-05T12:00:00Z"
 }
 ```
+
+Observação: a implementação atual usa `datetime.now(timezone.utc).isoformat()`, então você verá timestamps como `2026-02-05T12:00:00+00:00` (RFC3339/ISO8601 UTC).
 
 ## Endpoints
 
@@ -67,8 +71,8 @@ Request (JSON):
 
 Responses (hoje):
 
-- `201 Created` — criado. Body: `{ "job_id": "...", "status": "QUEUED" }`
-- `200 OK` — idempotente: job já existia. Body: `{ "job_id": "...", "status": "..." }`
+- `200 OK` — criado **ou** idempotente.
+  - Body: **Job (objeto completo)** (mesmo formato do `GET /jobs/{job_id}`).
 - `400 Bad Request` — erro de validação
 
 Example cURL (create):
@@ -99,7 +103,7 @@ curl http://localhost:8000/jobs/00000000-0000-0000-0000-000000000000
 
 Responses (hoje):
 
-- `200 OK` — `{ "job_id": "...", "status": "CANCEL_REQUESTED" }`
+- `200 OK` — Job (objeto completo) com `status = "CANCEL_REQUESTED"`.
 - `404 Not Found`
 
 Example cURL (cancel):
@@ -121,8 +125,8 @@ curl -X POST http://localhost:8000/jobs/00000000-0000-0000-0000-000000000000/can
 ## Idempotency rules
 
 - A idempotência é baseada no header `Idempotency-Key`.
-- Primeira requisição retorna `201`.
-- Requisições subsequentes com a mesma chave retornam `200` com o mesmo `job_id`.
+- A API retorna `200` tanto na criação quanto no caminho idempotente.
+- Requisições subsequentes com a mesma chave retornam o mesmo `job_id` e **não criam duplicado**.
 
 ## Error fields
 
@@ -150,4 +154,4 @@ Seed a job (curl example above) and run a worker process that polls and reserves
 
 ## Change log
 
-- 2026-02-10: alinhado com implementação atual (idempotência via header; create/cancel retornam `{job_id, status}`)
+- 2026-02-10: `POST /jobs` e `POST /jobs/{job_id}/cancel` retornam Job completo; adicionados `started_at`/`finished_at`

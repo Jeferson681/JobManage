@@ -5,8 +5,14 @@ Este diretório é reservado para **artefatos reprodutíveis** (evidências) do 
 Política:
 
 - Prefira **arquivos pequenos e texto** (JSON/MD/TXT) em vez de binários.
-- Se gerar binários (SVG/PNG), considere guardar fora do git e apenas linkar.
+- PNG/SVG pequenos (ex.: screenshots de texto, dumps e métricas) podem ser versionados quando o objetivo é **visualização direta no GitHub**.
 - Nunca coloque segredos.
+
+## Assist run (evidência real)
+
+Execuções assistidas podem ser guardadas em:
+
+- `docs/artifacts/assist_run/` — saída da demo, dumps e prints (PNG) para a galeria do README.
 
 ## Estrutura sugerida
 

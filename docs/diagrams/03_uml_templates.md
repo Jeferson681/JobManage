@@ -40,7 +40,7 @@ sequenceDiagram
     U->>API: POST /jobs (payload, idempotency_key)
     API->>DB: create job (job record)
     DB-->>API: job_id
-    API-->>U: 201 Created {job_id}
+    API-->>U: 200 OK Job
 
     Note over DB,W: Worker polls and reserves jobs
     W->>DB: reserve_next(worker_id)

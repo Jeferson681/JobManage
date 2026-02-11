@@ -8,6 +8,14 @@ API:
 - `GET /jobs/{job_id}`
 - `POST /jobs/{job_id}/cancel`
 
+## Fluxo (alto nível)
+
+1) A API recebe `POST /jobs` e persiste um job com status `QUEUED`.
+
+2) O worker faz polling no banco e reserva um job elegível via lease (`locked_until` + `worker_id`), marcando `RUNNING`.
+
+3) O worker finaliza marcando `SUCCEEDED` / `FAILED_RETRYABLE` / `FAILED_FINAL` / `CANCELED` e preenchendo timestamps (`started_at`, `finished_at`).
+
 ## Rodar rápido (Windows / PowerShell)
 
 ```powershell
@@ -51,7 +59,26 @@ python -m pytest -q
 - Operação/Incidentes: [docs/OP_RUNBOOK.md](docs/OP_RUNBOOK.md)
 - Decisões e ADRs: [docs/DECISIONS.md](docs/DECISIONS.md)
 - Diagramas: [docs/diagrams/README.md](docs/diagrams/README.md)
-- Evidências (placeholders): [docs/artifacts/README.md](docs/artifacts/README.md)
+
+## Evidências (assist_run)
+
+Links diretos (para abrir no GitHub):
+
+- Demo output (texto): [docs/artifacts/assist_run/demo_output.txt](docs/artifacts/assist_run/demo_output.txt)
+- Demo output (imagem): [docs/artifacts/assist_run/demo_output.png](docs/artifacts/assist_run/demo_output.png)
+- DB dump (JSON): [docs/artifacts/assist_run/jobs_db_dump.json](docs/artifacts/assist_run/jobs_db_dump.json)
+- Metrics (texto): [docs/artifacts/assist_run/metrics.txt](docs/artifacts/assist_run/metrics.txt)
+- Metrics (imagem): [docs/artifacts/assist_run/metrics.png](docs/artifacts/assist_run/metrics.png)
+- Health (texto): [docs/artifacts/assist_run/health.txt](docs/artifacts/assist_run/health.txt)
+- Health (imagem): [docs/artifacts/assist_run/health.png](docs/artifacts/assist_run/health.png)
+- Coverage (XML): [docs/artifacts/assist_run/coverage.xml](docs/artifacts/assist_run/coverage.xml)
+- Coverage (HTML): [docs/artifacts/assist_run/coverage_html](docs/artifacts/assist_run/coverage_html)
+
+Prévia rápida:
+
+![Demo output](docs/artifacts/assist_run/demo_output.png)
+
+![Metrics](docs/artifacts/assist_run/metrics.png)
 
 ## Licença
 
