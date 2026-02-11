@@ -37,49 +37,33 @@ $Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
 python -c "from jobmanager.worker.runner import run; run(worker_id='worker-1', poll_interval=1.0)"
 ```
 
-Demo (gera jobs e demonstra fluxo):
+````markdown
+# JobManager — Overview (60s)
+
+JobManager é um laboratório pequeno: uma API que enfileira jobs e um worker que os executa.
+
+Principais pontos:
+- `POST /jobs` — cria job (idempotência via `Idempotency-Key`)
+- `GET /jobs/{job_id}` — consulta
+- `POST /jobs/{job_id}/cancel` — pedido de cancelamento (best-effort)
+
+Run rápido (PowerShell):
 
 ```powershell
 .venv\Scripts\Activate.ps1
-$Env:JOBMANAGER_DB = "$PWD\jobmanager.db"
-python scripts\demo.py
+python -m pip install -e '.[dev]'
+python -m uvicorn jobmanager.api.app:app --reload --port 8000
 ```
 
-Testes:
+Worker (outro terminal):
 
 ```powershell
-python -m pytest -q
+.venv\Scripts\Activate.ps1
+python -c "from jobmanager.worker.runner import run; run(worker_id='worker-1', poll_interval=1.0)"
 ```
 
-## Documentação (principal em docs/)
+Docs técnicas e evidências detalhadas: [docs/README-TECH.md](docs/README-TECH.md)
 
-- Hub técnico: [docs/README-TECH.md](docs/README-TECH.md)
-- Como rodar/reproduzir cenários: [docs/RUN.md](docs/RUN.md)
-- Contrato da API: [docs/API_CONTRACT.md](docs/API_CONTRACT.md)
-- Operação/Incidentes: [docs/OP_RUNBOOK.md](docs/OP_RUNBOOK.md)
-- Decisões e ADRs: [docs/DECISIONS.md](docs/DECISIONS.md)
-- Diagramas: [docs/diagrams/README.md](docs/diagrams/README.md)
+Licença: MIT — [LICENSE](LICENSE)
 
-## Evidências (assist_run)
-
-Links diretos (para abrir no GitHub):
-
-- Demo output (texto): [docs/artifacts/assist_run/demo_output.txt](docs/artifacts/assist_run/demo_output.txt)
-- Demo output (imagem): [docs/artifacts/assist_run/demo_output.png](docs/artifacts/assist_run/demo_output.png)
-- DB dump (JSON): [docs/artifacts/assist_run/jobs_db_dump.json](docs/artifacts/assist_run/jobs_db_dump.json)
-- Metrics (texto): [docs/artifacts/assist_run/metrics.txt](docs/artifacts/assist_run/metrics.txt)
-- Metrics (imagem): [docs/artifacts/assist_run/metrics.png](docs/artifacts/assist_run/metrics.png)
-- Health (texto): [docs/artifacts/assist_run/health.txt](docs/artifacts/assist_run/health.txt)
-- Health (imagem): [docs/artifacts/assist_run/health.png](docs/artifacts/assist_run/health.png)
-- Coverage (XML): [docs/artifacts/assist_run/coverage.xml](docs/artifacts/assist_run/coverage.xml)
-- Coverage (HTML): [docs/artifacts/assist_run/coverage_html](docs/artifacts/assist_run/coverage_html)
-
-Prévia rápida:
-
-![Demo output](docs/artifacts/assist_run/demo_output.png)
-
-![Metrics](docs/artifacts/assist_run/metrics.png)
-
-## Licença
-
-MIT — ver [LICENSE](LICENSE).
+````

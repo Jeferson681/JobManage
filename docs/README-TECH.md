@@ -125,3 +125,15 @@ Sugestão de evidências:
 - Coverage XML
 - Logs JSON de um cenário de retry/cancel
 - Prints do GitHub Actions passando
+
+### Artefatos & Diagramas (política consolidada)
+
+Os artefatos reprodutíveis ficam em `docs/artifacts/`.
+
+- Prefira arquivos pequenos e texto (TXT/MD/JSON) sempre que possível.
+- PNGs pequenos (screenshots de texto, métricas, gráficos gerados) são aceitáveis para visualização no GitHub.
+- Não versionar bases de dados grandes ou arquivos com dados sensíveis; prefira dumps filtrados e texto.
+
+Diagramas gerados (Mermaid/SVG) vivem em `docs/diagrams/` e devem ser mantidos legíveis e pequenos.
+
+Use `docs/README-TECH.md` como o hub técnico; os READMEs locais em subpastas apontam para aqui como canônico.

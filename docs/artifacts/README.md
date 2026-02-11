@@ -14,6 +14,10 @@ Execuções assistidas podem ser guardadas em:
 
 - `docs/artifacts/assist_run/` — saída da demo, dumps e prints (PNG) para a galeria do README.
 
+Galeria (organização dos prints):
+
+- `docs/artifacts/GALLERY.md`
+
 ## Estrutura sugerida
 
 - `runs/` — logs e notas de execuções reprodutíveis
