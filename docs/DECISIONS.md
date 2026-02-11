@@ -1,27 +1,24 @@
-# Decision Records (ADR-style)
+# Decisions index and ADRs
 
-Purpose: record architectural and design decisions with context and alternatives.
+This file is an **index** of project decisions.
 
-Template for a decision entry:
+Rule of thumb:
 
-```
-Title: Short descriptive title
-Date: YYYY-MM-DD
-Status: proposed | accepted | deprecated
+- Significant decisions (architecture/semantics) become ADRs under `docs/adr/`.
+- This file links to ADRs and may record smaller decisions (tooling, conventions).
 
-Context:
-  Short description of the problem and constraints.
+## Accepted ADRs
 
-Decision:
-  The chosen approach.
+- [DB as queue (source of truth)](adr/0001-db-as-queue.md)
+- [Retry policy (exponential + full jitter)](adr/0002-retry-policy.md)
+- [Cooperative cancellation (best-effort)](adr/0003-cancel-semantics.md)
 
-Consequences:
-  Trade-offs, risks and migration notes.
+## Conventions and smaller decisions
 
-Alternatives considered:
-  - alt 1: brief note
-  - alt 2: brief note
-```
+- Language: primary documentation lives under `docs/` (root README is an overview + links).
+- Minimal observability: JSON logs + `/health`, `/ready`, `/metrics` endpoints.
+- CI: minimum coverage 90% in the test workflow.
 
-Examples:
-- 2026-02-05: Use DB-backed queue for initial implementation (accepted)
+## Template (for new ADRs)
+
+Use the same format as files under `docs/adr/`.

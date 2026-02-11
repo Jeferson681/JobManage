@@ -1,4 +1,4 @@
-## Use Cases
+## Use cases
 
 ```mermaid
 flowchart LR

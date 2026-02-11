@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   worker_id TEXT,
   result TEXT,
   last_error TEXT,
+    started_at TEXT,
+    finished_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -117,7 +119,8 @@ def reserve_next(conn: sqlite3.Connection, worker_id: str, lease_seconds: int = 
     # is due. This allows the worker to pick up retryable jobs when their
     # backoff timer has expired.
     sql_select = (
-        "SELECT job_id FROM jobs WHERE (status = 'QUEUED' OR status = 'FAILED_RETRYABLE') "
+        "SELECT job_id, status FROM jobs WHERE "
+        "(status = 'QUEUED' OR status = 'FAILED_RETRYABLE' OR status = 'CANCEL_REQUESTED') "
         "AND (next_run_at IS NULL OR next_run_at <= ?) "
         "AND (locked_until IS NULL OR locked_until <= ?) "
         "ORDER BY next_run_at ASC LIMIT 1"
@@ -126,13 +129,28 @@ def reserve_next(conn: sqlite3.Connection, worker_id: str, lease_seconds: int = 
     row = cur.fetchone()
     if not row:
         return None
-    job_id = row[0]
+    job_id, status = row[0], row[1]
+
+    # If the job was canceled before being reserved, finalize it without
+    # transitioning to RUNNING or incrementing attempts.
+    if str(status) == "CANCEL_REQUESTED":
+        update_job(
+            conn,
+            job_id,
+            status="CANCELED",
+            finished_at=_now_iso(),
+            locked_until=None,
+            worker_id=None,
+        )
+        return get_job(conn, job_id)
+
     sql_update = (
         "UPDATE jobs SET status = 'RUNNING', worker_id = ?, locked_until = ?, "
-        "attempt = attempt + 1, updated_at = ? "
+        "attempt = attempt + 1, started_at = COALESCE(started_at, ?), updated_at = ? "
         "WHERE job_id = ? AND (locked_until IS NULL OR locked_until <= ?)"
     )
-    cur.execute(sql_update, (worker_id, lease_until, _now_iso(), job_id, now_iso))
+    now_started = _now_iso()
+    cur.execute(sql_update, (worker_id, lease_until, now_started, _now_iso(), job_id, now_iso))
     if cur.rowcount == 0:
         conn.commit()
         return None
@@ -169,6 +187,8 @@ def update_job(conn: sqlite3.Connection, job_id: str, **fields) -> None:
         "max_attempts": "UPDATE jobs SET max_attempts = ?, updated_at = ? WHERE job_id = ?",
         "idempotency_key": "UPDATE jobs SET idempotency_key = ?, updated_at = ? WHERE job_id = ?",
         "payload": "UPDATE jobs SET payload = ?, updated_at = ? WHERE job_id = ?",
+        "started_at": "UPDATE jobs SET started_at = ?, updated_at = ? WHERE job_id = ?",
+        "finished_at": "UPDATE jobs SET finished_at = ?, updated_at = ? WHERE job_id = ?",
     }
 
     cur = conn.cursor()

@@ -1,19 +1,37 @@
 # API Contract — JobManager
 
-This document defines the minimal API for creating and controlling jobs in the JobManager.
+This document defines the JobManager minimum API **as implemented today**.
 
 Base URL: `/` (service root)
 
-Schemas
+Implementation: [src/jobmanager/api/app.py](../src/jobmanager/api/app.py)
 
-- Job (response)
+## Models
+
+### JobCreate (request)
+
+```json
+{
+  "job_type": "string",
+  "payload": {},
+  "max_attempts": 3
+}
+```
+
+Notes:
+
+- `max_attempts` is optional (default: 3).
+- There is no `idempotency_key` field in the request body.
+
+### Job (GET response)
+
+`GET /jobs/{job_id}` returns an object with persisted fields. Example (partial):
 
 ```json
 {
   "job_id": "uuid",
   "job_type": "string",
-  "payload": { },
-  "idempotency_key": "string|null",
+  "payload": {},
   "status": "QUEUED|RUNNING|SUCCEEDED|FAILED_RETRYABLE|FAILED_FINAL|CANCEL_REQUESTED|CANCELED",
   "attempt": 0,
   "max_attempts": 3,
@@ -22,67 +40,79 @@ Schemas
   "worker_id": "string|null",
   "result": null,
   "last_error": null,
+  "started_at": "2026-02-05T12:00:00Z|null",
+  "finished_at": "2026-02-05T12:00:00Z|null",
   "created_at": "2026-02-05T12:00:00Z",
   "updated_at": "2026-02-05T12:00:00Z"
 }
 ```
 
-Endpoints
+Note: the current implementation uses `datetime.now(timezone.utc).isoformat()`, so timestamps look like `2026-02-05T12:00:00+00:00` (RFC3339/ISO8601 UTC).
 
-1) Create job — `POST /jobs`
+## Endpoints
 
-- Description: create a new Job. Supports idempotency via `idempotency_key` (in body or `Idempotency-Key` header).
-- Request (JSON):
+### 1) Create job — `POST /jobs`
+
+- Description: creates a new job.
+
+Idempotency (optional):
+
+  - Header: `Idempotency-Key: <string>`
+  - If a job with the same key exists, the API returns the same `job_id` and **does not create a duplicate**.
+Request (JSON):
 
 ```json
 {
   "job_type": "send_email",
   "payload": { "to": "user@example.com", "subject": "Hi" },
-  "idempotency_key": "optional-string",
   "max_attempts": 5
 }
 ```
 
-- Responses:
-  - `201 Created` — job created. Body: job object (see schema).
-  - `200 OK` — idempotent: a job with the same `idempotency_key` already exists; returns existing job (not created again).
-  - `400 Bad Request` — validation error.
+Responses (current):
 
-Example cURL (create):
+- `200 OK` — created **or** idempotent path.
+  - Body: **Job (full object)** (same as `GET /jobs/{job_id}`).
+- `400 Bad Request` — validation error
+
+Example (cURL):
 
 ```bash
 curl -X POST http://localhost:8000/jobs \
   -H 'Content-Type: application/json' \
-  -d '{"job_type":"send_email","payload":{"to":"x@x","subject":"h"},"idempotency_key":"abc-123"}'
+  -H 'Idempotency-Key: abc-123' \
+  -d '{"job_type":"send_email","payload":{"to":"x@x","subject":"h"},"max_attempts":3}'
 ```
 
-2) Get job — `GET /jobs/{job_id}`
+### 2) Get job — `GET /jobs/{job_id}`
 
-- Description: retrieve job state and metadata.
+- Description: returns job state and metadata.
 - Responses:
   - `200 OK` — job object
   - `404 Not Found` — unknown `job_id`
 
-Example cURL (get):
+Example (cURL):
 
 ```bash
 curl http://localhost:8000/jobs/00000000-0000-0000-0000-000000000000
 ```
 
-3) Cancel job — `POST /jobs/{job_id}/cancel`
+### 3) Cancel job — `POST /jobs/{job_id}/cancel`
 
-- Description: request cancellation of a job. Cancellation is best-effort — worker must cooperate. Endpoint records `CANCEL_REQUESTED` and returns current job state.
-- Responses:
-  - `202 Accepted` — cancel request recorded; body: job object (updated status may be `CANCEL_REQUESTED`).
-  - `404 Not Found` — unknown `job_id`.
+- Description: requests cancellation (best-effort). The API marks `CANCEL_REQUESTED`.
 
-Example cURL (cancel):
+Responses (current):
+
+- `200 OK` — Job (full object) with `status = "CANCEL_REQUESTED"`.
+- `404 Not Found`
+
+Example (cURL):
 
 ```bash
 curl -X POST http://localhost:8000/jobs/00000000-0000-0000-0000-000000000000/cancel
 ```
 
-Status semantics
+## Status semantics
 
 - `QUEUED`: waiting for execution.
 - `RUNNING`: reserved by a worker (lease active).
@@ -92,35 +122,36 @@ Status semantics
 - `CANCEL_REQUESTED`: cancel requested (best-effort).
 - `CANCELED`: canceled (terminal).
 
-Idempotency rules
+## Idempotency rules
 
-- If `idempotency_key` is provided when creating a job, the server must ensure that repeated `POST /jobs` calls with the same `idempotency_key` and equivalent body return the same job instead of creating duplicates.
-- Recommended behavior: first request returns `201 Created`; subsequent identical requests return `200 OK` with the existing job object.
+- Idempotency is based on the `Idempotency-Key` header.
+- The API returns `200` for both create and idempotent paths.
+- Subsequent requests with the same key return the same `job_id` and **do not create duplicates**.
 
-Error fields
+## Error fields
 
 - `last_error` in the job object should be a structured object when present, e.g. `{ "message": "timeout connecting to X", "code": "network_timeout" }`.
 
-Timestamps and formats
+## Timestamps and formats
 
 - All timestamps use RFC3339 / ISO8601 UTC strings.
 
-Notes for implementers
+## Notes for implementers
 
 - Cancel is best-effort; workers should check for `CANCEL_REQUESTED` and exit gracefully when possible.
 - `locked_until` + `worker_id` implement the lease; if `locked_until` is in the past the job becomes eligible for reservation again.
 - `next_run_at` controls scheduling for retries and delayed jobs.
 
-Run examples (local dev)
+## Local execution examples
 
 Start API (FastAPI/uvicorn):
 
-```bash
-uvicorn jobmanager.api:app --reload
+```powershell
+python -m uvicorn jobmanager.api.app:app --reload
 ```
 
-Seed a job (curl example above) and run a worker process that polls and reserves jobs.
+Seed a job (cURL example above) and run a worker process that polls and reserves jobs.
 
-Change log
+## Change log
 
-- 2026-02-05: initial contract (minimal endpoints + idempotency rules)
+- 2026-02-10: `POST /jobs` and `POST /jobs/{job_id}/cancel` return the full Job object; added `started_at`/`finished_at`

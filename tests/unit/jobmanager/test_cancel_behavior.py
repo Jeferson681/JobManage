@@ -4,7 +4,7 @@ import tempfile
 from fastapi.testclient import TestClient
 
 from jobmanager import api
-from jobmanager.storage.core import create_job, get_job, init_db
+from jobmanager.storage.core import create_job, get_job, init_db, update_job
 
 
 def test_api_cancel_then_worker_honors_cancel(tmp_path, monkeypatch):
@@ -61,6 +61,35 @@ def test_api_cancel_then_worker_honors_cancel(tmp_path, monkeypatch):
         final = get_job(conn3, jid)
         assert final["status"] == "CANCELED"
         conn3.close()
+    finally:
+        try:
+            import os
+
+            os.unlink(path)
+        except Exception:
+            pass
+
+
+def test_worker_finalizes_pre_canceled_job_without_consuming_attempts(tmp_path):
+    fd, path = tempfile.mkstemp(suffix=".db")
+    try:
+        conn = sqlite3.connect(path, check_same_thread=False)
+        init_db(conn)
+        jid = create_job(conn, "t", {"a": 1}, max_attempts=2)
+        update_job(conn, jid, status="CANCEL_REQUESTED")
+        conn.close()
+
+        from jobmanager.worker import runner as runner_mod
+
+        runner_mod.DB_PATH = path
+        processed = runner_mod.run_once("w-pre-cancel")
+        assert processed == jid
+
+        conn2 = sqlite3.connect(path, check_same_thread=False)
+        final = get_job(conn2, jid)
+        assert final["status"] == "CANCELED"
+        assert final["attempt"] == 0
+        conn2.close()
     finally:
         try:
             import os

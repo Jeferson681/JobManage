@@ -1,4 +1,4 @@
-## Conceptual Architecture
+## Conceptual architecture
 
 ```mermaid
 flowchart LR

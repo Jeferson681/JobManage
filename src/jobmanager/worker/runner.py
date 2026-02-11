@@ -1,6 +1,7 @@
 import os
 import random
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from ..logging import log_event
@@ -21,26 +22,50 @@ def get_conn():
     pkg_db = getattr(pkg, "DB_PATH", None)
     mod_db = globals().get("DB_PATH", DB_PATH)
 
-    # If both package and module overrides are present, prefer the one
-    # that points to an existing DB file with the most recent mtime. This
-    # helps tests that set different DB paths to avoid cross-test leakage
-    # when temporary DB files coexist on disk.
-    candidates = []
+    # Many tests set `jobmanager.worker.DB_PATH` (package-level), while others
+    # set `jobmanager.worker.runner.DB_PATH` (module-level). Both are plain
+    # strings and can become stale across tests, so when both point to existing
+    # files we pick the DB that shows the most recent job activity.
+    def _candidate_score(path: str) -> str:
+        try:
+            c = sqlite3.connect(path, check_same_thread=False)
+            c.row_factory = sqlite3.Row
+            from ..storage.core import init_db as _init_db
+
+            _init_db(c)
+            cur = c.cursor()
+            cur.execute("SELECT MAX(updated_at) FROM jobs")
+            row = cur.fetchone()
+            c.close()
+            return str(row[0] or "")
+        except Exception:
+            return ""
+
+    candidates: list[str] = []
     for cand in (mod_db, pkg_db):
-        if cand and cand != ":memory":
-            try:
-                if os.path.exists(cand):
-                    mtime = os.path.getmtime(cand)
-                    candidates.append((mtime, cand))
-            except OSError:
-                # ignore filesystem access errors for candidate DB paths
-                continue
-    if candidates:
-        # pick the path with newest modification time
-        candidates.sort(reverse=True)
-        db_path = candidates[0][1]
+        if not cand or cand == ":memory:":
+            continue
+        try:
+            if os.path.exists(cand):
+                candidates.append(cand)
+        except OSError:
+            continue
+
+    if len(candidates) == 1:
+        db_path = candidates[0]
+    elif len(candidates) >= 2 and candidates[0] != candidates[1]:
+        a, b = candidates[0], candidates[1]
+        score_a = _candidate_score(a)
+        score_b = _candidate_score(b)
+        db_path = a if score_a >= score_b else b
     else:
-        db_path = pkg_db if pkg_db and pkg_db != ":memory:" else mod_db
+        # If neither exists on disk, fall back to non-memory overrides.
+        if mod_db and mod_db != ":memory:":
+            db_path = mod_db
+        elif pkg_db and pkg_db != ":memory:":
+            db_path = pkg_db
+        else:
+            db_path = mod_db or pkg_db or DB_PATH
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
@@ -61,6 +86,11 @@ def run_once(worker_id: str = "worker-1") -> Optional[str]:
     if not job:
         return None
     job_id = job["job_id"]
+
+    # reserve_next can finalize pre-canceled jobs without transitioning them
+    # to RUNNING. In that case there is no work to do.
+    if job.get("status") == "CANCELED":
+        return job_id
     try:
         # Re-fetch job to observe any cancellation request set after reservation
         from ..storage.core import get_job as _get_job
@@ -68,7 +98,15 @@ def run_once(worker_id: str = "worker-1") -> Optional[str]:
         current = _get_job(conn, job_id)
         if current and current.get("status") == "CANCEL_REQUESTED":
             # honor cooperative cancel
-            update_job(conn, job_id, status="CANCELED", locked_until=None, worker_id=None)
+            finished_at = datetime.now(timezone.utc).isoformat()
+            update_job(
+                conn,
+                job_id,
+                status="CANCELED",
+                finished_at=finished_at,
+                locked_until=None,
+                worker_id=None,
+            )
             try:
                 log_event("job.canceled", job_id=job_id, worker_id=worker_id)
             except Exception as exc:
@@ -79,7 +117,16 @@ def run_once(worker_id: str = "worker-1") -> Optional[str]:
 
         # Simulate work: here we just succeed immediately.
         result = {"message": "ok"}
-        update_job(conn, job_id, status="SUCCEEDED", result=result, locked_until=None, worker_id=None)
+        finished_at = datetime.now(timezone.utc).isoformat()
+        update_job(
+            conn,
+            job_id,
+            status="SUCCEEDED",
+            result=result,
+            finished_at=finished_at,
+            locked_until=None,
+            worker_id=None,
+        )
         try:
             log_event("job.succeeded", job_id=job_id, worker_id=worker_id)
         except Exception as exc:
@@ -101,7 +148,16 @@ def run_once(worker_id: str = "worker-1") -> Optional[str]:
         base = 2
         # if we've exhausted attempts, mark final failure
         if attempt >= max_attempts:
-            update_job(conn, job_id, status="FAILED_FINAL", last_error={"message": str(exc)})
+            finished_at = datetime.now(timezone.utc).isoformat()
+            update_job(
+                conn,
+                job_id,
+                status="FAILED_FINAL",
+                finished_at=finished_at,
+                last_error={"message": str(exc)},
+                locked_until=None,
+                worker_id=None,
+            )
             try:
                 log_event("job.failed_final", job_id=job_id, worker_id=worker_id, error=str(exc))
             except Exception as log_exc:
@@ -111,8 +167,6 @@ def run_once(worker_id: str = "worker-1") -> Optional[str]:
             return job_id
 
         # schedule next run using exponential backoff with full jitter
-        from datetime import datetime, timedelta, timezone
-
         nominal = min(300, base**attempt)
         # full jitter: uniform(0, nominal)
         # This use of the stdlib PRNG is intentional (non-crypto). Mark with

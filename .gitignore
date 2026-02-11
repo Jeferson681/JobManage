@@ -45,3 +45,11 @@ private_docs/
 
 # Ignore the working architecture diagram (not ready to be versioned)
 /docs/diagrams/architecture.mmd
+
+# Local artifacts (don't version binary DBs or large zips)
+/docs/artifacts/assist_run/*.db
+/docs/artifacts/assist_run/*.zip
+/docs/artifacts/assist_run/*.tar.gz
+
+# Local scratch DB (created during assisted runs)
+demo.db

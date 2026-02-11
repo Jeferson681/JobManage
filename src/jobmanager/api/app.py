@@ -106,7 +106,7 @@ def metrics() -> dict:
 
     now_iso = datetime.now(timezone.utc).isoformat()
     cur.execute(
-        "SELECT COUNT(*) FROM jobs " "WHERE status = 'RUNNING' AND locked_until IS NOT NULL AND locked_until <= ?",
+        "SELECT COUNT(*) FROM jobs WHERE status = 'RUNNING' AND locked_until IS NOT NULL AND locked_until <= ?",
         (now_iso,),
     )
     orphaned_running = int(cur.fetchone()[0])
@@ -137,7 +137,7 @@ def create_job(item: JobCreate, idempotency_key: Optional[str] = Header(None)):
                     import logging
 
                     logging.exception("log_event failed: %s", exc)
-                return JSONResponse(status_code=200, content={"job_id": job["job_id"], "status": job["status"]})
+                return JSONResponse(status_code=200, content=job)
     job_id = storage_create_job(conn, item.job_type, item.payload, item.max_attempts, idempotency_key)
     try:
         log_event("job.create", job_id=job_id, job_type=item.job_type)
@@ -145,7 +145,10 @@ def create_job(item: JobCreate, idempotency_key: Optional[str] = Header(None)):
         import logging
 
         logging.exception("log_event failed: %s", exc)
-    return {"job_id": job_id, "status": "QUEUED"}
+    job = get_job(conn, job_id)
+    if job is None:
+        raise HTTPException(status_code=500, detail="job created but not found")
+    return job
 
 
 @app.get("/jobs/{job_id}")
@@ -172,4 +175,7 @@ def cancel_job(job_id: str):
     from ..storage.core import update_job as storage_update_job
 
     storage_update_job(conn, job_id, status="CANCEL_REQUESTED")
-    return {"job_id": job_id, "status": "CANCEL_REQUESTED"}
+    updated = get_job(conn, job_id)
+    if updated is None:
+        raise HTTPException(status_code=500, detail="job updated but not found")
+    return updated
