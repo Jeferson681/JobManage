@@ -55,14 +55,14 @@ jobs:
               "health.txt",
           ]
 
-          missing = [name for name in required if not os.path.exists(os.path.join(out_dir, name))]
-          if missing:
+            missing = [name for name in required if not os.path.exists(os.path.join(out_dir, name))]
+            if missing:
               print("Missing required artifacts:", missing)
               sys.exit(1)
 
             with open(os.path.join(out_dir, "health.txt"), "r", encoding="utf-8") as f:
               health = json.load(f)
-          if health.get("status") != "ok":
+            if health.get("status") != "ok":
               print("health.txt is not ok:", health)
               sys.exit(1)
 
