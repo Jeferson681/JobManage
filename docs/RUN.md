@@ -120,3 +120,31 @@ When `Dockerfile` and `docker-compose.yml` exist, document here:
 - how to build and run
 - how to configure `JOBMANAGER_DB`
 - how to collect logs/artifacts from compose
+
+---
+
+## 10) CI artifacts workflow (how to reproduce locally)
+
+This repository includes a CI workflow that generates demo artifacts under `docs/artifacts/assist_run`.
+
+Reproduce locally (Linux/macOS shell):
+
+```bash
+python -m pip install -e '.[dev]'
+rm -rf docs/artifacts/assist_run
+mkdir -p docs/artifacts/assist_run
+python scripts/demo.py --db docs/artifacts/assist_run/demo.db --iterations 12 > docs/artifacts/assist_run/demo_output.txt
+python private_docs/tools/generate_artifacts.py --db docs/artifacts/assist_run/demo.db --out docs/artifacts/assist_run
+python -c "import json; print(json.load(open('docs/artifacts/assist_run/metrics.txt')))"
+```
+
+Reproduce locally (Windows / PowerShell):
+
+```powershell
+python -m pip install -e '.[dev]'
+Remove-Item -Recurse -Force docs\artifacts\assist_run -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force docs\artifacts\assist_run | Out-Null
+python scripts\demo.py --db docs\artifacts\assist_run\demo.db --iterations 12 | Tee-Object -FilePath docs\artifacts\assist_run\demo_output.txt
+python private_docs\tools\generate_artifacts.py --db docs\artifacts\assist_run\demo.db --out docs\artifacts\assist_run
+python -c "import json; print(json.load(open('docs/artifacts/assist_run/metrics.txt', encoding='utf-8')))"
+```

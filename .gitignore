@@ -53,3 +53,7 @@ private_docs/
 
 # Local scratch DB (created during assisted runs)
 demo.db
+
+# Temporary folders used by local CI/demo smoke runs
+/.tmp_ci_artifacts/
+/.tmp_ci_smoke/
