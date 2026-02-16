@@ -26,53 +26,66 @@ Requires-Dist: bandit; extra == "dev"
 Requires-Dist: types-requests; extra == "dev"
 Dynamic: license-file
 
-# JobManager
+# JobManager — overview
 
-> WIP — Private
+JobManager is a job orchestration system: an API that creates jobs and a worker that executes them from a database-backed queue.
 
-JobManager é um laboratório técnico de backend para demonstrar um sistema de jobs assíncronos com workers, persistência auditável, políticas de retry/cancelamento e observabilidade básica.
+What this project demonstrates:
+- idempotency (`Idempotency-Key`)
+- lease-based concurrency control (worker reserves via a time-bound lock)
+- retry/backoff with jitter + best-effort cancellation
+- basic operability signals (`/health`, `/ready`, `/metrics`)
 
-Status: Work in progress (private). License: MIT.
+## Program flow
 
-## Começando (Windows)
+```mermaid
+flowchart LR
+  C[Client] -->|POST /jobs| A[API]
+  A -->|insert job row| D[(DB)]
+  W[Worker] -->|poll + reserve (lease)| D
+  W -->|update status/result| D
+  A -->|GET /health /ready /metrics| O[Operability]
+  W -->|structured logs| O
+```
 
-Crie um ambiente virtual e instale dependências de desenvolvimento:
+## Docs
+
+- Run guide (Windows/Linux): [docs/RUN.md](docs/RUN.md)
+- Tech hub: [docs/README-TECH.md](docs/README-TECH.md) (EN) · [docs/README-TECH.pt-BR.md](docs/README-TECH.pt-BR.md) (PT-BR)
+- API contract: [docs/API_CONTRACT.md](docs/API_CONTRACT.md)
+- Ops runbook: [docs/OP_RUNBOOK.md](docs/OP_RUNBOOK.md)
+- Evidence gallery: [docs/artifacts/GALLERY.md](docs/artifacts/GALLERY.md)
+- Decisions/ADRs: [docs/DECISIONS.md](docs/DECISIONS.md)
+
+## Run (preview)
+
+Detailed steps and variants: [docs/RUN.md](docs/RUN.md)
+
+API (Windows / PowerShell):
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements-dev.txt
+.venv\Scripts\Activate.ps1
+python -m pip install -e '.[dev]'
+python -m uvicorn jobmanager.api.app:app --reload --port 8000
 ```
 
-Comandos úteis:
+Worker (separate terminal):
 
 ```powershell
-# format
-black .
-# isort (se necessário)
-isort .
-# lint
-ruff check .
-# typecheck
-mypy src || true
-# tests
-pytest
-# pre-commit
-.venv\Scripts\python.exe -m pre_commit run --all-files
+.venv\Scripts\Activate.ps1
+python -c "from jobmanager.worker.runner import run; run(worker_id='worker-1', poll_interval=1.0)"
 ```
 
-## Documento de levantamento
+<details>
+<summary>Preview (3 screenshots)</summary>
 
-Interno: veja `private_docs/Documento_Levantamento_Direcionamento_Tecnico.md` para requisitos, decisões e contratos.
+![Demo output (part 1)](docs/artifacts/assist_run/demo_output_part1.png)
 
-## Diagrams
+![Health](docs/artifacts/assist_run/health.png)
 
-Diagrama de arquitetura (rascunho local): `docs/diagrams/architecture.mmd` — mantido localmente enquanto estiver em draft.
+![Metrics](docs/artifacts/assist_run/metrics.png)
 
-## License
+</details>
 
-MIT — ver `LICENSE`.
-
-## Contato
-
-Jeferson Oliveira de Sousa — Jefersonoliveiradesousa681@gmail.com
+License: MIT — [LICENSE](LICENSE)

@@ -1,0 +1,56 @@
+name: Artifacts (demo assist_run)
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  artifacts:
+    name: Generate demo artifacts
+    env:
+      ART_DIR: ".tmp_ci_artifacts/${{ github.run_id }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+
+      - name: Generate artifacts (demo + metrics)
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          set -euo pipefail
+          ART_DIR=".tmp_ci_artifacts/${{ github.run_id }}"
+          rm -rf "$ART_DIR"
+          mkdir -p "$ART_DIR"
+          python scripts/demo.py --db "$ART_DIR/demo.db" --iterations 12 > "$ART_DIR/demo_output.txt"
+          python scripts/generate_artifacts.py --db "$ART_DIR/demo.db" --out "$ART_DIR"
+
+      - name: Validate artifacts
+        run: |
+          set -euo pipefail
+          python scripts/validate_artifacts.py "$ART_DIR"
+
+      - name: Upload assist_run directory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assist_run-artifacts
+          path: .tmp_ci_artifacts/${{ github.run_id }}
+          retention-days: 7
