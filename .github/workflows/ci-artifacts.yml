@@ -10,6 +10,8 @@ on:
 jobs:
   artifacts:
     name: Generate demo artifacts
+    env:
+      ART_DIR: ".tmp_ci_artifacts/${{ github.run_id }}"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
