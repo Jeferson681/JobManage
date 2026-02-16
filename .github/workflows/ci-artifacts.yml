@@ -34,10 +34,11 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: |
           set -euo pipefail
-          rm -rf docs/artifacts/assist_run
-          mkdir -p docs/artifacts/assist_run
-          python scripts/demo.py --db docs/artifacts/assist_run/demo.db --iterations 12 > docs/artifacts/assist_run/demo_output.txt
-          python private_docs/tools/generate_artifacts.py --db docs/artifacts/assist_run/demo.db --out docs/artifacts/assist_run
+          ART_DIR=".tmp_ci_artifacts/${{ github.run_id }}"
+          rm -rf "$ART_DIR"
+          mkdir -p "$ART_DIR"
+          python scripts/demo.py --db "$ART_DIR/demo.db" --iterations 12 > "$ART_DIR/demo_output.txt"
+          python scripts/generate_artifacts.py --db "$ART_DIR/demo.db" --out "$ART_DIR"
 
       - name: Validate artifacts
         run: |
@@ -46,7 +47,7 @@ jobs:
           import os
           import sys
 
-          out_dir = "docs/artifacts/assist_run"
+          out_dir = os.environ.get('ART_DIR', None) or f".tmp_ci_artifacts/{os.environ.get('GITHUB_RUN_ID','local')}"
           required = [
               "demo.db",
               "demo_output.txt",
@@ -59,7 +60,7 @@ jobs:
               print("Missing required artifacts:", missing)
               sys.exit(1)
 
-          with open(os.path.join(out_dir, "health.txt"), "r", encoding="utf-8") as f:
+            with open(os.path.join(out_dir, "health.txt"), "r", encoding="utf-8") as f:
               health = json.load(f)
           if health.get("status") != "ok":
               print("health.txt is not ok:", health)
@@ -101,4 +102,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: assist_run-artifacts
-          path: docs/artifacts/assist_run
+          path: .tmp_ci_artifacts/${{ github.run_id }}
+          retention-days: 7

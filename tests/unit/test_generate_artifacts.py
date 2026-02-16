@@ -30,8 +30,19 @@ def test_generate_artifacts(tmp_path):
     # import generator by running the script (keeps tests free of package-layout assumptions)
     import runpy
 
-    mod = runpy.run_path(str(Path("private_docs") / "tools" / "generate_artifacts.py"))
-    gen = mod["generate"]
+    # Prefer public script in `scripts/` when present; fall back to private_docs/tools
+    candidates = [Path("scripts") / "generate_artifacts.py", Path("private_docs") / "tools" / "generate_artifacts.py"]
+    gen = None
+    for cand in candidates:
+        if cand.exists():
+            mod = runpy.run_path(str(cand))
+            gen = mod.get("generate")
+            if gen:
+                break
+
+    if gen is None:
+        raise FileNotFoundError("generate_artifacts.py not found in scripts/ or private_docs/tools/")
+
     gen(str(db_path), str(out_dir))
 
     metrics_path = out_dir / "metrics.txt"
