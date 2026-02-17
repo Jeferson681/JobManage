@@ -1,0 +1,38 @@
+name: CI — sqlite3 grep (warn-only)
+
+on:
+  push: {}
+  pull_request: {}
+
+jobs:
+  grep-sqlite-warn:
+    name: Grep `sqlite3.connect` (warn-only)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install pip
+        run: python -m pip install --upgrade pip
+
+      - name: Run sqlite3.connect checker (warn-only)
+        run: |
+          py_files=$(git ls-files "*.py" | tr '\n' ' ')
+          if [ -z "$py_files" ]; then
+            echo "No python files to check"
+            exit 0
+          fi
+          python scripts/check_sqlite_connect.py $py_files > sqlite_check_report.txt || true
+
+      - name: Upload sqlite check report
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-check-report
+          path: sqlite_check_report.txt
+          retention-days: 7
