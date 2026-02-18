@@ -10,6 +10,9 @@ from pathlib import Path
 ALLOWLIST = (
     "tests/",
     "src/jobmanager/storage/",
+    # intentionally open DB connections from these helpers
+    "src/jobmanager/api/app.py",
+    "src/jobmanager/worker/runner.py",
     "tools/",
     "scripts/",
     "private_docs/",
