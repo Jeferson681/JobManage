@@ -3,20 +3,28 @@
 
 Usage: pre-commit will pass filenames as args.
 """
+import os
 import re
 import sys
 from pathlib import Path
 
-ALLOWLIST = (
-    "tests/",
-    "src/jobmanager/storage/",
-    # intentionally open DB connections from these helpers
-    "src/jobmanager/api/app.py",
-    "src/jobmanager/worker/runner.py",
-    "tools/",
-    "scripts/",
-    "private_docs/",
-)
+# Allowlist prefixes for `sqlite3.connect` checks. To avoid committing local
+# private directory names to the repository, allow overriding with
+# `SQLITE_ALLOWLIST` (comma-separated prefixes). Defaults keep tools/scripts
+# and the storage layer allowed.
+env_sql_allow = os.environ.get("SQLITE_ALLOWLIST", "")
+if env_sql_allow:
+    ALLOWLIST = tuple(x.strip() for x in env_sql_allow.split(",") if x.strip())
+else:
+    ALLOWLIST = (
+        "tests/",
+        "src/jobmanager/storage/",
+        # intentionally open DB connections from these helpers
+        "src/jobmanager/api/app.py",
+        "src/jobmanager/worker/runner.py",
+        "tools/",
+        "scripts/",
+    )
 
 PAT = re.compile(r"\bsqlite3\.connect\b")
 

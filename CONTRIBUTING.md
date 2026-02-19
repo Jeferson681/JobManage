@@ -24,7 +24,7 @@ Allowed locations for direct `sqlite3.connect` usage:
 - `src/jobmanager/storage/` — the canonical storage layer for the project.
 - `tests/` — test fixtures, demos and temporary examples.
 - `tools/` and `scripts/` — helper scripts and local developer utilities.
-- `private_docs/` — intentionally noisy or private artifacts (allowlisted for scanners).
+- Local-only developer artifacts (kept out of the repository and excluded by `.gitignore`).
 
 If you believe a direct `sqlite3.connect` is necessary outside these locations, request an exception by opening an issue using the Exception Request template (choose "Exception request" when creating a new issue) and include:
 

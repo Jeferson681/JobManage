@@ -134,7 +134,9 @@ python -m pip install -e '.[dev]'
 rm -rf docs/artifacts/assist_run
 mkdir -p docs/artifacts/assist_run
 python scripts/demo.py --db docs/artifacts/assist_run/demo.db --iterations 12 > docs/artifacts/assist_run/demo_output.txt
-python private_docs/tools/generate_artifacts.py --db docs/artifacts/assist_run/demo.db --out docs/artifacts/assist_run
+# Use the public helper in `scripts/` when available. If you keep a local,
+# private helper for artifact generation, run it locally outside the repo.
+python scripts/generate_artifacts.py --db docs/artifacts/assist_run/demo.db --out docs/artifacts/assist_run
 python -c "import json; print(json.load(open('docs/artifacts/assist_run/metrics.txt')))"
 ```
 
@@ -145,6 +147,8 @@ python -m pip install -e '.[dev]'
 Remove-Item -Recurse -Force docs\artifacts\assist_run -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force docs\artifacts\assist_run | Out-Null
 python scripts\demo.py --db docs\artifacts\assist_run\demo.db --iterations 12 | Tee-Object -FilePath docs\artifacts\assist_run\demo_output.txt
-python private_docs\tools\generate_artifacts.py --db docs\artifacts\assist_run\demo.db --out docs\artifacts\assist_run
+# Prefer the public helper in `scripts/`. If you use a private/local helper,
+# run it locally (do not commit private helpers to the remote repository).
+python scripts\generate_artifacts.py --db docs\artifacts\assist_run\demo.db --out docs\artifacts\assist_run
 python -c "import json; print(json.load(open('docs/artifacts/assist_run/metrics.txt', encoding='utf-8')))"
 ```
