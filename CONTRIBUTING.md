@@ -1,16 +1,12 @@
 # Contributing
 
-Thanks for contributing. This project is primarily a private learning lab, but contributions and improvements are welcome by invitation.
+This repository is maintained by the author for demonstration and learning purposes. External contributions are neither required nor expected.
 
-If you work on this repository:
+Thank you for taking a look. The code follows common professional standards:
 
-- Follow code style and checks: `black`, `isort`, `ruff`, `mypy`.
-- Run pre-commit hooks locally: `.venv\Scripts\python.exe -m pre_commit run --all-files`.
-- Write tests for new logic and keep them small and focused.
-- For documentation or design changes, update the appropriate file under `docs/` and add an ADR to `docs/DECISIONS.md` when applicable.
+- Formatting: `black` (line length 120)
+- Import ordering: `isort`
+- Linting: `ruff`
+- Tests: `pytest`
 
-PR process (suggested):
-- Open a PR with a clear summary and related issue or decision.
-- Keep commits small and focused; prefer a single topic per branch.
-
-Note: This project is authored by Jeferson Oliveira de Sousa. Contact via email before submitting major changes.
+If you wish to suggest improvements, please contact the author directly. This file is a concise, professional placeholder rather than a contribution guide.

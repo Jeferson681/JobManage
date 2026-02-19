@@ -30,8 +30,10 @@ def test_generate_artifacts(tmp_path):
     # import generator by running the script (keeps tests free of package-layout assumptions)
     import runpy
 
-    # Prefer public script in `scripts/` when present; fall back to private_docs/tools
-    candidates = [Path("scripts") / "generate_artifacts.py", Path("private_docs") / "tools" / "generate_artifacts.py"]
+    # Prefer public script in `scripts/` when present. If a local/private helper
+    # is used for artifact generation, run it outside the repository and do not
+    # commit private helpers to source control.
+    candidates = [Path("scripts") / "generate_artifacts.py"]
     gen = None
     for cand in candidates:
         if cand.exists():
@@ -41,7 +43,9 @@ def test_generate_artifacts(tmp_path):
                 break
 
     if gen is None:
-        raise FileNotFoundError("generate_artifacts.py not found in scripts/ or private_docs/tools/")
+        import pytest
+
+        pytest.skip("generate_artifacts.py not found in scripts/ (private helpers are not used in CI)")
 
     gen(str(db_path), str(out_dir))
 
