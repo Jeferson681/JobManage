@@ -11,7 +11,7 @@ from pathlib import Path
 # Allowlist may include local/private paths. To avoid hardcoding local-only
 # development directories in the repository, this script reads an optional
 # environment variable `TRUFFLEHOG_ALLOWLIST` containing comma-separated
-# prefixes (e.g. "private_docs/,tools/"). If not set, default to `tools/` only.
+# prefixes (e.g. "local_only/,tools/"). If not set, default to `tools/` only.
 env_allow = os.environ.get("TRUFFLEHOG_ALLOWLIST", "")
 if env_allow:
     ALLOWLIST = tuple(x.strip() for x in env_allow.split(",") if x.strip())
