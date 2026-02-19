@@ -33,3 +33,14 @@ If you believe a direct `sqlite3.connect` is necessary outside these locations, 
 - Any mitigations (e.g., explicit connection close, use of temporary directories, or test-only flags).
 
 Maintainers will review exception requests and either approve, request changes, or suggest alternative approaches. Small, short-lived demos are more likely to be approved when documented clearly.
+
+Vendorizing third-party tooling for CI
+-----------------------------------
+
+For stability of CI runs we may pin scanner binaries (e.g., TruffleHog). We prefer not to commit binaries directly when possible. The repository includes the following helpers:
+
+- `tools/trufflehog.sha256`: a file containing the expected SHA256 hex for the pinned trufflehog tarball. Place the checksum here to enable CI verification.
+- `scripts/fetch_trufflehog_checksum.py`: convenience script to fetch a release tarball and populate `tools/trufflehog.sha256` with the checksum.
+- `scripts/vendor_trufflehog.py`: optional helper to download, verify and extract the trufflehog tarball into `tools/` if you prefer to vendor the binary.
+
+Workflows prefer to download the pinned tarball and verify its SHA256 against `tools/trufflehog.sha256`. If the checksum file is absent the workflows fall back to installing `trufflehog` via `pip`. See `.github/workflows/ci-secrets-scan.yml` for details.
