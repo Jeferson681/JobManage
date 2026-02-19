@@ -1,0 +1,72 @@
+name: CI — scan metrics (warn-only)
+
+on:
+  push: {}
+  pull_request: {}
+
+jobs:
+  scan-metrics:
+    name: Run warn-only scans and collect metrics
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install pip
+        run: python -m pip install --upgrade pip
+
+      - name: Run sqlite3.connect checker (warn-only)
+        run: |
+          py_files=$(git ls-files "*.py" | tr '\n' ' ')
+          if [ -z "$py_files" ]; then
+            echo "No python files to check"
+            sqlite_count=0
+          else
+            python scripts/check_sqlite_connect.py $py_files > sqlite_check_report.txt || true
+            sqlite_count=$(grep -c '^ - ' sqlite_check_report.txt || true)
+          fi
+          echo "sqlite_count=$sqlite_count" > metrics.env
+
+      - name: Download or install trufflehog
+        run: |
+          set -e
+          TRUFFLEHOG_VERSION="3.0.1"
+          mkdir -p tools
+          URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/trufflehog_${TRUFFLEHOG_VERSION}_linux_amd64.tar.gz"
+          curl -sL "$URL" -o /tmp/trufflehog.tar.gz || true
+          if [ -f /tmp/trufflehog.tar.gz ]; then
+            tar -xzf /tmp/trufflehog.tar.gz -C tools || true
+          else
+            python -m pip install --upgrade pip
+            python -m pip install trufflehog
+          fi
+
+      - name: Run trufflehog filesystem scan (warn-only)
+        run: |
+          if [ -x "./tools/trufflehog" ]; then
+            ./tools/trufflehog filesystem --json . > trufflehog_report.json || true
+          else
+            trufflehog filesystem --json . > trufflehog_report.json || true
+          fi
+
+      - name: Collect scan metrics (python helper)
+        run: |
+          python scripts/collect_scan_metrics.py trufflehog_report.json sqlite_check_report.txt metrics.json || true
+          # emit env values for later steps if needed
+          sqlite_count=$(python -c "import json;print(json.load(open('metrics.json'))['sqlite_findings'] if 'metrics.json' in __import__('os').listdir('.') else 0)") || true
+          truffle_count=$(python -c "import json;print(json.load(open('metrics.json'))['trufflehog_findings'] if 'metrics.json' in __import__('os').listdir('.') else 0)") || true
+          echo "sqlite_count=$sqlite_count" > metrics.env
+          echo "truffle_count=$truffle_count" >> metrics.env
+
+      - name: Upload metrics artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-metrics
+          path: metrics.json
+          retention-days: 30
