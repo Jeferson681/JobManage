@@ -41,6 +41,16 @@ jobs:
           URL="https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VERSION}/trufflehog_${TRUFFLEHOG_VERSION}_linux_amd64.tar.gz"
           curl -sL "$URL" -o /tmp/trufflehog.tar.gz || true
           if [ -f /tmp/trufflehog.tar.gz ]; then
+            if [ -f tools/trufflehog.sha256 ]; then
+              expected=$(cat tools/trufflehog.sha256 | tr -d '\n') || true
+              actual=$(sha256sum /tmp/trufflehog.tar.gz | cut -d' ' -f1) || true
+              if [ "$expected" != "REPLACE_WITH_TRUFFLEHOG_TARBALL_SHA256_HEX" ] && [ "$expected" != "$actual" ]; then
+                echo "trufflehog tarball checksum mismatch (expected $expected, got $actual)"
+                exit 1
+              fi
+            else
+              echo "No checksum file at tools/trufflehog.sha256; skipping verification"
+            fi
             tar -xzf /tmp/trufflehog.tar.gz -C tools || true
           else
             python -m pip install --upgrade pip
