@@ -29,6 +29,20 @@ flowchart LR
 - Evidence gallery: [docs/artifacts/GALLERY.md](docs/artifacts/GALLERY.md)
 - Decisions/ADRs: [docs/DECISIONS.md](docs/DECISIONS.md)
 
+## Repository layout
+
+- `src/jobmanager/`: application code
+  - `api/`: FastAPI app and HTTP handlers
+  - `storage/`: DB access + job reservation/lease logic
+  - `worker/`: worker loop (`run`, `run_once`) and execution behavior
+  - `schemas/`: Pydantic models
+- `tests/`:
+  - `unit/jobmanager/`: unit tests mirroring `src/jobmanager/` modules
+  - `unit/scripts/`: tests for `scripts/` helpers
+  - `integration/` and `e2e/`: higher-level tests
+- `scripts/`: local helpers (demo, artifacts generation, CI scan helpers)
+- `docs/`: contracts, runbook, diagrams, and a small evidence gallery
+
 ## Run (preview)
 
 Detailed steps and variants: [docs/RUN.md](docs/RUN.md)
