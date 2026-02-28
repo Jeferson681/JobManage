@@ -7,13 +7,13 @@ def test_filter_removes_allowlisted_paths(tmp_path, monkeypatch):
     out = tmp_path / "out.json"
     # findings: one allowlisted under local/private, one regular
     findings = [
-        {"path": "private_docs/secret.txt", "match": "KEY"},
+        {"path": "local_only/secret.txt", "match": "KEY"},
         {"path": "src/jobmanager/config.py", "match": "PASSWORD"},
     ]
     inp.write_text(json.dumps(findings), encoding="utf-8")
 
     # ensure allowlist excludes private paths by setting env variable
-    monkeypatch.setenv("TRUFFLEHOG_ALLOWLIST", "private_docs/,tools/")
+    monkeypatch.setenv("TRUFFLEHOG_ALLOWLIST", "local_only/,tools/")
     # import module after setting env so it picks up ALLOWLIST at import time
     flt = importlib.import_module("scripts.filter_trufflehog_report")
 
