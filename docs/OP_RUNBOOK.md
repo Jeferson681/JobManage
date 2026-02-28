@@ -77,7 +77,7 @@ Retries happen when the worker marks `FAILED_RETRYABLE` and sets `next_run_at`.
 
 Checklist:
 
-- `attempt` e `max_attempts`
+- `attempt` and `max_attempts`
 - `last_error`
 - `next_run_at`
 

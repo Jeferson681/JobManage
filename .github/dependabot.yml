@@ -1,7 +1,7 @@
 
 version: 2
 updates:
-  # Runtime dependencies (requirements.txt)
+  # Python dependencies (pyproject.toml / requirements.txt)
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
@@ -10,13 +10,3 @@ updates:
     labels:
       - "dependencies"
       - "runtime"
-
-  # Dev dependencies (dedicated file under dev-requirements/)
-  - package-ecosystem: "pip"
-    directory: "/dev-requirements"
-    schedule:
-      interval: "daily"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "dev"
