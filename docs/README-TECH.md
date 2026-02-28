@@ -98,6 +98,18 @@ ADR: [docs/adr/0002-retry-policy.md](adr/0002-retry-policy.md).
 
 ## Observability
 
+### Note: DB-selection heuristic (testing)
+
+During development the worker contains a small heuristic to pick between
+multiple `DB_PATH` overrides (module vs package) by inspecting the most
+recent `updated_at` value. This is a testing-time convenience and is not
+intended as runtime behavior for production. In a follow-up change we will
+remove this heuristic and prefer explicit injection of the DB path or a
+connection factory via the application lifecycle. See `chore/pr-low-risk`
+for the related documentation changes and the planned `feat/pr-medium-risk`
+that refactors the worker connection handling.
+
+
 Observability is treated as a first-class requirement: the job lifecycle is inspectable from the outside.
 
 Logs:

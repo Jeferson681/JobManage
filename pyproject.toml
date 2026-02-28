@@ -14,10 +14,11 @@ dependencies = [
 	"httpx>=0.28.0",
 	"requests>=2.31.0",
 	"pydantic>=2.7.0",
-	"SQLAlchemy>=2.0.0",
 	"alembic>=1.11.0",
-	"psycopg2-binary>=2.9.6",
-]
+    # Using stdlib `sqlite3` in current implementation; SQLAlchemy and
+    # psycopg2 are removed from runtime deps to keep the scaffold minimal.
+    # Add them back when migrating to a production RDBMS.
+
 
 [project.optional-dependencies]
 dev = [
