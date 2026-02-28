@@ -64,7 +64,7 @@ Useful endpoints:
 
 ## 6) Run the worker
 
-Em outro terminal:
+In another terminal:
 
 ```powershell
 .venv\Scripts\Activate.ps1

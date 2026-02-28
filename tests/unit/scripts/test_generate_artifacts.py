@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def test_generate_artifacts(tmp_path):
-    """Unit test for private_docs/tools/generate_artifacts.generate()
+    """Unit test for scripts/generate_artifacts.generate()
 
     Creates a temporary sqlite DB, seeds a few jobs, calls the generator
     and asserts `metrics.txt` and `health.txt` contain expected structure.
