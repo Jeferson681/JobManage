@@ -68,6 +68,12 @@ def get_conn():
             db_path = mod_db or pkg_db or DB_PATH
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # Improve concurrency for SQLite by enabling WAL and a busy timeout
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=5000;")
+    except Exception:
+        pass
     return conn
 
 

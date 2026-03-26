@@ -1,6 +1,6 @@
-# JobManager — overview
+# JobManage — overview
 
-JobManager is a job orchestration system: an API that creates jobs and a worker that executes them from a database-backed queue.
+JobManage is a job orchestration system: an API that creates jobs and a worker that executes them from a database-backed queue.
 
 What this project demonstrates:
 - idempotency (`Idempotency-Key`)
@@ -10,15 +10,15 @@ What this project demonstrates:
 
 ## Program flow
 
-```mermaid
-flowchart LR
-  C[Client] -->|POST /jobs| A[API]
-  A -->|insert job row| D[(DB)]
-  W[Worker] -->|poll + reserve (lease)| D
-  W -->|update status/result| D
-  A -->|GET /health /ready /metrics| O[Operability]
-  W -->|structured logs| O
-```
+Simplified flow (plain text to avoid renderer issues):
+
+Client -> POST /jobs -> API -> insert job row -> DB
+
+Worker (poll + reserve/lease) -> DB -> update status/result
+
+API -> GET /health /ready /metrics -> Operability
+
+Worker -> structured logs -> Operability
 
 ## Docs
 

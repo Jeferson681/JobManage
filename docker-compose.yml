@@ -1,0 +1,25 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: jobmanager
+    volumes:
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    # Reduce server verbosity to suppress WARNING-level messages in logs
+    command: ["postgres", "-c", "log_min_messages=error"]
+
+  app:
+    build: .
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      PGPASSWORD: secret
+      PGDATABASE: jobmanager
+    depends_on:
+      - db
+    command: ["--workers", "5", "--jobs", "500", "--duration", "60"]

@@ -58,3 +58,21 @@ demo.db
 # Temporary folders used by local CI/demo smoke runs
 /.tmp_ci_artifacts/
 /.tmp_ci_smoke/
+
+# Local generated / junk files (ignore if created during demos/tests)
+# SQLite / demo DBs
+*.db
+*.sqlite
+*.sqlite3
+
+# k6 downloaded utils and scripts
+scripts/k6/
+scripts/k6/*.js
+
+# logs and runtime artifacts
+*.log
+logs/
+
+# editor swap / temp (already included but ensure coverage)
+*~
+
