@@ -19,7 +19,9 @@ def main(argv: Sequence[str]) -> int:
     sqlite_count = sum(1 for line in sqlite_text.splitlines() if line.strip().startswith("-"))
     truffle_count = len(truffle_list)
 
-    out_fp.write_text(json.dumps({"sqlite_findings": sqlite_count, "trufflehog_findings": truffle_count}), encoding="utf-8")
+    out_fp.write_text(
+        json.dumps({"sqlite_findings": sqlite_count, "trufflehog_findings": truffle_count}), encoding="utf-8"
+    )
     return 0
 
 

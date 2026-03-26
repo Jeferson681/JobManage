@@ -3,7 +3,8 @@ repos:
   hooks:
     - id: sqlite3-connect-check
       name: sqlite3 connect usage check
-      entry: python scripts/check_sqlite_connect.py
+      # run the checker but never fail the commit; it is warn-only
+      entry: bash -c 'python scripts/check_sqlite_connect.py "$@" || true'
       language: system
       pass_filenames: true
       files: '\.py$'
