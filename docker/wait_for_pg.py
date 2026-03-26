@@ -1,10 +1,16 @@
+import argparse
 import os
 import time
-import argparse
+
 import psycopg2
 
 
 def wait_for_pg(timeout: int = 60) -> int:
+    """Wait for Postgres to accept connections.
+
+    Returns 0 if a connection was established before the `timeout` (seconds),
+    otherwise returns 1.
+    """
     start = time.time()
     host = os.environ.get("PGHOST", "localhost")
     port = int(os.environ.get("PGPORT", 5432))

@@ -1,4 +1,9 @@
+import os
+import sys
 from pathlib import Path
+
+# Ensure repo root is first on sys.path so `import scripts.*` resolves here
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 import scripts.check_sqlite_connect as checker
 

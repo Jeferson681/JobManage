@@ -1,5 +1,10 @@
 import importlib
 import json
+import os
+import sys
+
+# Ensure repo root is first on sys.path so `import scripts.*` resolves here
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 
 def test_filter_removes_allowlisted_paths(tmp_path, monkeypatch):
@@ -20,7 +25,6 @@ def test_filter_removes_allowlisted_paths(tmp_path, monkeypatch):
     rc = flt.main([str(inp), str(out)])
     assert rc == 0
     data = json.loads(out.read_text(encoding="utf-8"))
-    # only the non-allowlisted finding should remain
     assert isinstance(data, list)
     assert len(data) == 1
     assert data[0]["path"] == "src/jobmanager/config.py"

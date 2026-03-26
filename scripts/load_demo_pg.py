@@ -15,15 +15,13 @@ scales under concurrent worker load.
 from __future__ import annotations
 
 import argparse
+import random
 import threading
 import time
-import random
-import os
 from typing import Optional
 
 import psycopg2
 import psycopg2.extras
-
 
 DB_SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -49,9 +47,13 @@ CREATE INDEX IF NOT EXISTS idx_jobs_idempotency ON jobs (idempotency_key);
 
 
 def get_conn(dsn: Optional[str] = None):
+    """Return a new psycopg2 connection using optional DSN or environment.
+
+    The function leaves autocommit off so callers control transactions.
+    """
     params = {}
     if dsn:
-        params['dsn'] = dsn
+        params["dsn"] = dsn
     else:
         # allow PGHOST/PGUSER/PGPASSWORD/PGDATABASE/PGPORT environ
         pass
@@ -61,18 +63,23 @@ def get_conn(dsn: Optional[str] = None):
 
 
 def init_db(conn):
+    """Initialize the DB schema for the load demo if necessary."""
     cur = conn.cursor()
     cur.execute(DB_SCHEMA)
     conn.commit()
 
 
 def create_jobs(conn, total_jobs: int):
+    """Insert a number of demo jobs into the DB."""
     cur = conn.cursor()
     for i in range(total_jobs):
         cur.execute(
             """
-            INSERT INTO jobs (job_id, job_type, payload, status, attempt, max_attempts, created_at, updated_at)
-            VALUES (gen_random_uuid()::text, %s, %s::jsonb, 'QUEUED', 0, %s, now(), now())
+            INSERT INTO jobs (
+              job_id, job_type, payload, status, attempt, max_attempts, created_at, updated_at
+            ) VALUES (
+              gen_random_uuid()::text, %s, %s::jsonb, 'QUEUED', 0, %s, now(), now()
+            )
             """,
             ("load_test", psycopg2.extras.Json({"n": i}), 3),
         )
@@ -80,33 +87,38 @@ def create_jobs(conn, total_jobs: int):
 
 
 def reserve_next(conn, worker_id: str, lease_seconds: int = 30):
+    """Reserve the next available job using FOR UPDATE SKIP LOCKED.
+
+    Returns the updated job row dict or None when no job available.
+    """
     # Use a transaction with SELECT FOR UPDATE SKIP LOCKED to avoid races
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     try:
         cur.execute("BEGIN")
         cur.execute(
             """
-            SELECT job_id, status
-            FROM jobs
-            WHERE (status = 'QUEUED' OR status = 'FAILED_RETRYABLE' OR status = 'CANCEL_REQUESTED')
-              AND (next_run_at IS NULL OR next_run_at <= now())
-            ORDER BY next_run_at NULLS FIRST
-            FOR UPDATE SKIP LOCKED
-            LIMIT 1
-            """,
+                        SELECT job_id, status
+                        FROM jobs
+                        WHERE (status = 'QUEUED' OR status = 'FAILED_RETRYABLE' OR status = 'CANCEL_REQUESTED')
+                            AND (next_run_at IS NULL OR next_run_at <= now())
+                        ORDER BY next_run_at NULLS FIRST
+                        FOR UPDATE SKIP LOCKED
+                        LIMIT 1
+                        """,
         )
         row = cur.fetchone()
         if not row:
             conn.rollback()
             return None
 
-        job_id = row['job_id']
-        status = row['status']
+        job_id = row["job_id"]
+        status = row["status"]
 
-        if status == 'CANCEL_REQUESTED':
+        if status == "CANCEL_REQUESTED":
             cur.execute(
-                "UPDATE jobs SET status='CANCELED', finished_at = now(), locked_until = NULL, worker_id = NULL, updated_at = now() WHERE job_id = %s",
-                (job_id,)
+                "UPDATE jobs SET status='CANCELED', finished_at = now(), locked_until = NULL,"
+                " worker_id = NULL, updated_at = now() WHERE job_id = %s",
+                (job_id,),
             )
             conn.commit()
             return get_job(conn, job_id)
@@ -132,16 +144,29 @@ def reserve_next(conn, worker_id: str, lease_seconds: int = 30):
 
 
 def get_job(conn, job_id: str):
+    """Return a job row as a dict for the given `job_id`."""
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("SELECT * FROM jobs WHERE job_id = %s", (job_id,))
     return cur.fetchone()
 
 
 def update_job(conn, job_id: str, **fields):
+    """Update allowed job fields for `job_id` and commit the change."""
     if not fields:
         return
     allowed = {
-        'status', 'result', 'last_error', 'locked_until', 'worker_id', 'next_run_at', 'attempt', 'max_attempts', 'idempotency_key', 'payload', 'started_at', 'finished_at'
+        "status",
+        "result",
+        "last_error",
+        "locked_until",
+        "worker_id",
+        "next_run_at",
+        "attempt",
+        "max_attempts",
+        "idempotency_key",
+        "payload",
+        "started_at",
+        "finished_at",
     }
     sets = []
     vals = []
@@ -159,16 +184,17 @@ def update_job(conn, job_id: str, **fields):
 
 
 def worker_once(conn, worker_id: str):
+    """Reserve and process a single job; returns processed job_id or None."""
     job = reserve_next(conn, worker_id, lease_seconds=10)
     if not job:
         return None
-    job_id = job['job_id']
-    if job.get('status') == 'CANCELED':
+    job_id = job["job_id"]
+    if job.get("status") == "CANCELED":
         return job_id
     # Re-fetch to honour cancellation
     current = get_job(conn, job_id)
-    if current and current.get('status') == 'CANCEL_REQUESTED':
-        update_job(conn, job_id, status='CANCELED', finished_at='now()')
+    if current and current.get("status") == "CANCEL_REQUESTED":
+        update_job(conn, job_id, status="CANCELED", finished_at="now()")
         return job_id
 
     # simulate work and random failure
@@ -177,23 +203,34 @@ def worker_once(conn, worker_id: str):
         next_run_delay = int(random.uniform(1, 10))
         cur = conn.cursor()
         cur.execute(
-            "UPDATE jobs SET status='FAILED_RETRYABLE', last_error = %s, next_run_at = now() + interval %s, worker_id = NULL, locked_until = NULL, updated_at = now() WHERE job_id = %s",
-            (psycopg2.extras.Json({'message': 'simulated failure'}), f"'{next_run_delay} seconds'", job_id),
+            (
+                "UPDATE jobs SET status='FAILED_RETRYABLE', last_error = %s, "
+                "next_run_at = now() + interval %s, worker_id = NULL, "
+                "locked_until = NULL, updated_at = now() WHERE job_id = %s"
+            ),
+            (psycopg2.extras.Json({"message": "simulated failure"}), f"'{next_run_delay} seconds'", job_id),
         )
         conn.commit()
         return job_id
 
     # succeed
     cur = conn.cursor()
-    cur.execute("UPDATE jobs SET status='SUCCEEDED', result = %s, finished_at = now(), worker_id = NULL, locked_until = NULL, updated_at = now() WHERE job_id = %s", (psycopg2.extras.Json({'message': 'ok'}), job_id))
+    cur.execute(
+        (
+            "UPDATE jobs SET status='SUCCEEDED', result = %s, finished_at = now(), "
+            "worker_id = NULL, locked_until = NULL, updated_at = now() WHERE job_id = %s"
+        ),
+        (psycopg2.extras.Json({"message": "ok"}), job_id),
+    )
     conn.commit()
     return job_id
 
 
 def worker_loop(dsn: Optional[str], worker_id: str, stop_flag):
+    """Run the worker loop until `stop_flag['stop']` is set."""
     conn = get_conn(dsn)
     try:
-        while not stop_flag['stop']:
+        while not stop_flag["stop"]:
             try:
                 processed = worker_once(conn, worker_id)
             except Exception:
@@ -207,6 +244,7 @@ def worker_loop(dsn: Optional[str], worker_id: str, stop_flag):
 
 
 def print_stats(conn):
+    """Print a small summary of job counts grouped by status."""
     cur = conn.cursor()
     cur.execute("SELECT status, COUNT(*) as count FROM jobs GROUP BY status")
     rows = cur.fetchall()
@@ -216,6 +254,7 @@ def print_stats(conn):
 
 
 def main(dsn: Optional[str], workers: int, jobs: int, duration: int):
+    """Entry point to run the demo load test with given parameters."""
     conn = get_conn(dsn)
     conn.autocommit = False
     init_db(conn)
@@ -226,7 +265,7 @@ def main(dsn: Optional[str], workers: int, jobs: int, duration: int):
     create_jobs(inserter, jobs)
     inserter.close()
 
-    stop_flag = {'stop': False}
+    stop_flag = {"stop": False}
     threads = []
     print(f"Iniciando {workers} workers...")
     for i in range(workers):
@@ -240,19 +279,19 @@ def main(dsn: Optional[str], workers: int, jobs: int, duration: int):
             print_stats(conn)
             time.sleep(2)
     finally:
-        stop_flag['stop'] = True
-        print('\nFinalizando...')
+        stop_flag["stop"] = True
+        print("\nFinalizando...")
         for t in threads:
             t.join(timeout=1)
         conn.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dsn', help='Optional psycopg2 DSN')
-    parser.add_argument('--workers', type=int, default=5)
-    parser.add_argument('--jobs', type=int, default=200)
-    parser.add_argument('--duration', type=int, default=30)
+    parser.add_argument("--dsn", help="Optional psycopg2 DSN")
+    parser.add_argument("--workers", type=int, default=5)
+    parser.add_argument("--jobs", type=int, default=200)
+    parser.add_argument("--duration", type=int, default=30)
     args = parser.parse_args()
 
     # If no DSN provided, rely on environment variables

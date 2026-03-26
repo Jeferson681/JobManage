@@ -1,4 +1,9 @@
 import json
+import os
+import sys
+
+# Ensure repo root is first on sys.path so `import scripts.*` resolves here
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 import scripts.collect_scan_metrics as cm
 

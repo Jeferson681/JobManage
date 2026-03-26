@@ -72,8 +72,10 @@ def get_conn():
     try:
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA busy_timeout=5000;")
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
+
+        logging.debug("sqlite PRAGMA failed: %s", exc)
     return conn
 
 
